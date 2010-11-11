@@ -212,10 +212,10 @@
    ~ disk.  Keep the data disks and the CommitLog disks separate for best
    ~ performance
   -->
-  <SavedCachesDirectory>/var/lib/cassandra/saved_caches</SavedCachesDirectory>
-  <CommitLogDirectory>/var/lib/cassandra/commitlog</CommitLogDirectory>
+  <SavedCachesDirectory>active-data/saved_caches</SavedCachesDirectory>
+  <CommitLogDirectory>active-data/commitlog</CommitLogDirectory>
   <DataFileDirectories>
-      <DataFileDirectory>/var/lib/cassandra/data</DataFileDirectory>
+      <DataFileDirectory>active-data/data</DataFileDirectory>
   </DataFileDirectories>
 
 
