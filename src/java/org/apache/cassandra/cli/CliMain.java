@@ -32,8 +32,10 @@ import org.apache.thrift.transport.TFramedTransport;
 import org.apache.thrift.transport.TSocket;
 import org.apache.thrift.transport.TTransport;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -246,6 +248,15 @@ public class CliMain
             cliClient_ = new CliClient(css_, null);
         }
 
+        boolean useJlineConsole = true;
+        if (useJlineConsole) {
+            readJlineConsole();
+        } else {
+            readStdinConsole();
+        }
+    }
+
+    private static void readJlineConsole() throws IOException {
         ConsoleReader reader = new ConsoleReader();
         reader.addCompletor(completer_);
         reader.setBellEnabled(false);
@@ -267,6 +278,16 @@ public class CliMain
         String line;
         while ((line = reader.readLine(PROMPT + "> ")) != null)
         {
+            processCLIStmt(line);
+        }
+    }
+
+    private static void readStdinConsole() throws IOException {
+        BufferedReader reader = new BufferedReader(
+            new InputStreamReader(System.in));
+        System.out.print(PROMPT + "> ");
+        String line = reader.readLine();
+        while ((line != null) && !line.equalsIgnoreCase("exit")) {
             processCLIStmt(line);
         }
     }
