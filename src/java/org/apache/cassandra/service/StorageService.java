@@ -32,6 +32,10 @@ import javax.management.ObjectName;
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
+
+import edu.berkeley.poseidon.RowMutationTorrentVerbHandler;
+import edu.berkeley.poseidon.TorrentManager;
+
 import org.apache.commons.lang.StringUtils;
 
 import org.apache.cassandra.concurrent.JMXEnabledThreadPoolExecutor;
@@ -108,6 +112,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         GOSSIP_DIGEST_SYN,
         GOSSIP_DIGEST_ACK,
         GOSSIP_DIGEST_ACK2,
+        MUTATION_TORRENT,
         ;
         // remember to add new verbs at the end, since we serialize by ordinal
     }
@@ -120,6 +125,8 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
     public static IPartitioner getPartitioner() {
         return partitioner_;
     }
+
+    public static final TorrentManager torrentManager = new TorrentManager();
 
     public Collection<Range> getLocalRanges(String table)
     {
@@ -211,6 +218,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         /* register the verb handlers */
         MessagingService.instance.registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
+        MessagingService.instance.registerVerbHandlers(Verb.MUTATION_TORRENT, new RowMutationTorrentVerbHandler(torrentManager));
         MessagingService.instance.registerVerbHandlers(Verb.MUTATION, new RowMutationVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ_REPAIR, new ReadRepairVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ, new ReadVerbHandler());

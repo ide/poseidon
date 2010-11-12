@@ -21,6 +21,7 @@ package org.apache.cassandra.concurrent;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -38,9 +39,10 @@ import static org.apache.cassandra.config.DatabaseDescriptor.getConcurrentWriter
  */
 public class StageManager
 {
-    private static Map<String, ThreadPoolExecutor> stages = new HashMap<String, ThreadPoolExecutor>();
+    private static Map<String, ExecutorService> stages = new HashMap<String, ExecutorService>();
 
     public final static String READ_STAGE = "ROW-READ-STAGE";
+    public final static String MUTATION_TORRENT_STAGE = "ROW-MUTATION-TORRENT-STAGE";
     public final static String MUTATION_STAGE = "ROW-MUTATION-STAGE";
     public final static String STREAM_STAGE = "STREAM-STAGE";
     public final static String GOSSIP_STAGE = "GS";
@@ -54,6 +56,7 @@ public class StageManager
         stages.put(READ_STAGE, multiThreadedConfigurableStage(READ_STAGE, getConcurrentReaders()));        
         stages.put(RESPONSE_STAGE, multiThreadedStage("RESPONSE-STAGE", Math.max(2, Runtime.getRuntime().availableProcessors())));
         // the rest are all single-threaded
+        stages.put(MUTATION_TORRENT_STAGE, new JMXEnabledThreadPoolExecutor(MUTATION_TORRENT_STAGE));
         stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
         stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GMFD"));
         stages.put(AE_SERVICE_STAGE, new JMXEnabledThreadPoolExecutor(AE_SERVICE_STAGE));
@@ -90,7 +93,7 @@ public class StageManager
      * Retrieve a stage from the StageManager
      * @param stageName name of the stage to be retrieved.
     */
-    public static ThreadPoolExecutor getStage(String stageName)
+    public static ExecutorService getStage(String stageName)
     {
         return stages.get(stageName);
     }

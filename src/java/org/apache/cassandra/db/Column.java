@@ -84,6 +84,20 @@ public class Column implements IColumn
         return name;
     }
 
+    public static boolean columnNameIsTorrent(byte[] name) {
+        return name[0]=='T';
+    }
+
+    public static boolean isTorrent(IColumn c)
+    {
+        return columnNameIsTorrent(c.name()) && !c.isMarkedForDelete();
+    }
+
+    public static boolean isDeletedTorrent(IColumn c)
+    {
+        return columnNameIsTorrent(c.name()) && c.isMarkedForDelete();
+    }
+
     public Column getSubColumn(byte[] columnName)
     {
         throw new UnsupportedOperationException("This operation is unsupported on simple columns.");
