@@ -1,4 +1,4 @@
-package edu.berkeley.poseidon;
+package edu.berkeley.poseidon.torrent;
 
 import java.io.IOException;
 import java.io.OutputStream;
