@@ -1,21 +1,18 @@
 package edu.berkeley.poseidon.torrent;
 
+import static com.google.common.base.Preconditions.checkElementIndex;
+import static com.google.common.base.Preconditions.checkNotNull;
+import static com.google.common.base.Preconditions.checkPositionIndex;
 import static com.google.common.base.Preconditions.checkState;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.PushbackInputStream;
 import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-import javax.print.DocFlavor.BYTE_ARRAY;
-
 import org.apache.cassandra.utils.Pair;
 
-import com.google.common.base.Preconditions;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 
 public class Bdecoder {
@@ -24,107 +21,123 @@ public class Bdecoder {
         BYTE_STRING, INTEGER, LIST, DICTIONARY
     }
 
-    private static final int PUSHBACK_BUFFER_SIZE = 256;
-
     private final Charset utf8;
     private final Charset ascii;
+
+    private int offset;
 
     public Bdecoder() {
         utf8 = Charset.forName("UTF-8");
         ascii = Charset.forName("US-ASCII");
     }
+
+    public Pair<?, Type> decode(byte[] data) {
+        offset = 0;
+        return decodeInternal(data);
+    }
+
+    public String asString(byte[] data) {
+        checkNotNull(data);
+        return new String(data, utf8);
+    }
     
-    public Pair<?, Type> decode(InputStream in) throws IOException {
-        return decode(new PushbackInputStream(in, PUSHBACK_BUFFER_SIZE));
-    }
-
-    private Pair<?, Type> decode(PushbackInputStream in) throws IOException {
-        int lengthPrefix = readLength(in);
-        if (lengthPrefix != -1) {
-            // Since the byte-string decoder will try to read the length, we
-            // need to push the bytes back into the stream. Silly, I know.
-            in.unread(Integer.toString(lengthPrefix).getBytes(ascii));
-            return Pair.create(decodeByteString(in), Type.BYTE_STRING);
-        }
-
-        // Peek at the next character that determines the type of the object.
-        int typeByte = in.read();
-        if (typeByte == -1) {
-            throw new IOException("no data to read from input stream");
-        }
-        in.unread(typeByte);
-
-        char typePrefix = (char) typeByte;
-        switch (typePrefix) {
+    private Pair<?, Type> decodeInternal(byte[] data) {
+        checkElementIndex(offset, data.length);
+        switch (data[offset]) {
             case 'i':
-                return Pair.create(decodeInteger(in), Type.INTEGER);
+                return Pair.create(decodeInteger(data), Type.INTEGER);
             case 'l':
-                return Pair.create(decodeList(in), Type.LIST);
+                return Pair.create(decodeList(data), Type.LIST);
             case 'd':
-                return Pair.create(decodeDictionary(in), Type.DICTIONARY);
+                return Pair.create(decodeDictionary(data), Type.DICTIONARY);
             default:
-                throw new IOException(typePrefix + " is an unknown delimiter");
+                int originalOffset = offset;
+                int lengthPrefix = readLength(data);
+                if (lengthPrefix != -1) {
+                    // Since the byte-string decoder will try to read the
+                    // length, we need to restore the offset into the array.
+                    offset = originalOffset;
+                    return Pair.create(decodeByteString(data),
+                                       Type.BYTE_STRING);
+                }
+
+                String error = String.format("'%c' is an unknown delimiter",
+                                             data[offset]);
+                throw new RuntimeException(error);
         }
     }
 
-    public byte[] decodeByteString(PushbackInputStream in) throws IOException {
-        int length = readLength(in);
+    private byte[] decodeByteString(byte[] data) {
+        int length = readLength(data);
         checkState(length != -1);
+        checkPositionIndex(offset + length, data.length);
 
-        byte[] buffer = new byte[length];
-        int bytesRead = in.read(buffer);
-        if 
+        byte[] byteString = Arrays.copyOfRange(data, offset, offset + length);
+        offset += length;
+        return byteString;
     }
 
-    public String decodeString(PushbackInputStream in) throws IOException {
-        return new String(decodeByteString(in), utf8);
+    private String decodeString(byte[] data) {
+        return asString(decodeByteString(data));
     }
 
-    public Long decodeInteger(PushbackInputStream in) throws IOException {
-        
+    private long decodeInteger(byte[] data) {
+        consume(data, 'i');
+        int start = offset;
+        while (data[offset] != 'e') {
+            offset++;
+        }
+        consume(data, 'e');
+        byte[] slice = Arrays.copyOfRange(data, start, offset);
+        return Long.valueOf(new String(slice, ascii));
     }
 
-    public List<?> decodeList(PushbackInputStream in) throws IOException {
-        
+    private List<?> decodeList(byte[] data) {
+        consume(data, 'l');
+        List<Object> list = Lists.newArrayList();
+        while (data[offset] != 'e') {
+            list.add(decode(data).left);
+        }
+        consume(data, 'e');
+        return list;
     }
 
-    public Map<String, ?> decodeDictionary(PushbackInputStream in)
-            throws IOException {
-        
+    private Map<String, ?> decodeDictionary(byte[] data) {
+        consume(data, 'd');
         Map<String, Object> dictionary = Maps.newHashMap();
-        
+        while (data[offset] != 'e') {
+            // Java evaluates arguments from left to right.
+            dictionary.put(decodeString(data), decode(data).left);
+        }
+        consume(data, 'e');
+        return dictionary;
+    }
+
+    private void consume(byte[] data, char expected) {
+        checkState(data[offset] == expected);
+        offset++;
     }
 
     /**
-     * Reads a base-10 ASCII-encoded integer from the specified input stream
-     * and pushes the bytes read back into the stream. If there is no
-     * non-negative integer at the beginning of the stream, this method returns
-     * -1.
+     * Reads a base-10 ASCII-encoded integer from the specified byte array and
+     * increments the offset into the array by the appropriate amount. If there
+     * is no non-negative integer to read from the array, this method returns
+     * -1 and the offset into the array is unchanged.
      *
-     * @param in the stream from which to read the integer. Any bytes consumed
-     *        from the stream are pushed back into it.
-     * @throws IOException if an error occurs while reading from the stream
+     * @param data the array of bytes from which to read an integer
      */
-    private int peekAtLength(PushbackInputStream in) throws IOException {
-    
-    }
-
-    private int readLength(PushbackInputStream in) throws IOException {
-        // Read as many digits from the stream as possible.
-        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-        int nextByte = in.read();
-        while ((nextByte != -1) && Character.isDigit((char) nextByte)) {
-            buffer.write(nextByte);
-            nextByte = in.read();
-        }
-        byte[] data = buffer.toByteArray();
-        
-        // Push back the last byte if we didn't reach the end of the stream.
-        if (nextByte != -1) {
-            in.unread(nextByte);
+    private int readLength(byte[] data) {
+        // Read as many digits from the array as possible.
+        int start = offset;
+        while ((offset < data.length) &&
+                Character.isDigit((char) data[offset])) {
+            offset++;
         }
 
-        return (data.length > 0) ?
-            Integer.valueOf(new String(data, ascii)) : -1;
+        if (offset == start) {
+            return -1;
+        }
+        byte[] slice = Arrays.copyOfRange(data, start, offset);
+        return Integer.valueOf(new String(slice, ascii));
     }
 }

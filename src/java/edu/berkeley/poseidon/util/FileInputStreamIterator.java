@@ -1,4 +1,4 @@
-package edu.berkeley.poseidon.torrent;
+package edu.berkeley.poseidon.util;
 
 import java.io.File;
 import java.io.FileInputStream;
