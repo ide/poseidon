@@ -70,6 +70,7 @@ public class Bdecoder {
     private byte[] decodeByteString(byte[] data) {
         int length = readLength(data);
         checkState(length != -1);
+        consume(data, ':');
         checkPositionIndex(offset + length, data.length);
 
         byte[] byteString = Arrays.copyOfRange(data, offset, offset + length);
@@ -87,8 +88,9 @@ public class Bdecoder {
         while (data[offset] != 'e') {
             offset++;
         }
-        consume(data, 'e');
+
         byte[] slice = Arrays.copyOfRange(data, start, offset);
+        consume(data, 'e');        
         return Long.valueOf(new String(slice, ascii));
     }
 
@@ -96,7 +98,7 @@ public class Bdecoder {
         consume(data, 'l');
         List<Object> list = Lists.newArrayList();
         while (data[offset] != 'e') {
-            list.add(decode(data).left);
+            list.add(decodeInternal(data).left);
         }
         consume(data, 'e');
         return list;
@@ -107,7 +109,7 @@ public class Bdecoder {
         Map<String, Object> dictionary = Maps.newHashMap();
         while (data[offset] != 'e') {
             // Java evaluates arguments from left to right.
-            dictionary.put(decodeString(data), decode(data).left);
+            dictionary.put(decodeString(data), decodeInternal(data).left);
         }
         consume(data, 'e');
         return dictionary;

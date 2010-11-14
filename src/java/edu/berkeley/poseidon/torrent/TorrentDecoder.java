@@ -33,7 +33,7 @@ public class TorrentDecoder {
                 List<URI> uris = Lists.newArrayList();
                 for (Object item : list) {
                     try {
-                        uris.add(new URI(String.valueOf(item)));
+                        uris.add(new URI(asString(item)));
                     } catch (URISyntaxException e) {
                         throw new TorrentException(e);
                     }
@@ -44,7 +44,7 @@ public class TorrentDecoder {
             checkState(metainfo.containsKey("announce"));
             try {
                 builder.addAnnounceUri(
-                    new URI(String.valueOf(metainfo.get("announce"))));
+                    new URI(asString(metainfo.get("announce"))));
             } catch (URISyntaxException e) {
                 throw new TorrentException(e);
             }
