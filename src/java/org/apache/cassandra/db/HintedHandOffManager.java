@@ -130,6 +130,7 @@ public class HintedHandOffManager
                 startColumn = cf.getColumnNames().last();
                 RowMutation rm = new RowMutation(tableName, key);
                 rm.add(cf);
+                // FIXME(pathorn): Should this use MUTATION_TORRENT or MUTATION?
                 Message message = rm.makeRowMutationMessage();
                 WriteResponseHandler responseHandler = new WriteResponseHandler(1, tableName);
                 MessagingService.instance.sendRR(message, new InetAddress[] { endPoint }, responseHandler);

@@ -37,6 +37,8 @@ public class MessageDeliveryTask implements Runnable
     
     public void run()
     { 
+        // FIXME(pathorn): I wonder if we'll hit an RPC timeout when sending large torrents...
+        // Clients are synchronously waiting for the entire thing to finish.
         if (System.currentTimeMillis() >  constructionTime_ + DatabaseDescriptor.getRpcTimeout())
         {
             MessagingService.incrementDroppedMessages();

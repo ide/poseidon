@@ -12,9 +12,12 @@ import org.apache.cassandra.db.Column;
 import org.apache.cassandra.db.ColumnFamily;
 import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.db.RowMutation;
+import org.apache.cassandra.db.RowMutationVerbHandler;
 import org.apache.cassandra.net.IVerbHandler;
 import org.apache.cassandra.net.Message;
-import org.apache.cassandra.service.StorageService;
+import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService.Verb;
+import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.log4j.Logger;
 
 
@@ -24,19 +27,27 @@ public class RowMutationTorrentVerbHandler implements IVerbHandler {
         private Set<File> torrentFiles;
         private Message mutation;
 
-        public TorrentCompleted (Message mutation, Set<File> torrentFiles) {
+        public TorrentCompleted (RowMutation mutation, Set<File> torrentFiles) throws IOException {
             this.torrentFiles = torrentFiles;
-            this.mutation = mutation;
+            this.mutation = mutation.makeRowMutationMessage();
         }
 
         public void finishedDownload(File torrentFile) {
             torrentFiles.remove(torrentFile);
             if (torrentFiles.size() == 0) {
-                // TODO: Figure out how to properly run a mutation!
-                // There's rm.apply(), which is sometimes called from StorageProxy, but we want to run
-                // on a different SEDA stage I think.
-                //StageManager.getStage(StageManager.MUTATION_STAGE).runThisMutation(mutation);
+                finishedAll();
             }
+        }
+        
+        public void finishedAll() {
+            Runnable runnable = new WrappedRunnable()
+            {
+                public void runMayThrow() throws IOException
+                {
+                    MessagingService.instance.getVerbHandler(Verb.MUTATION).doVerb(mutation);
+                }
+            };
+            StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
         }
     }
     
@@ -65,10 +76,14 @@ public class RowMutationTorrentVerbHandler implements IVerbHandler {
                     }
                 }
             }
-            Message mutationMessage = rm.makeRowMutationMessage(StorageService.Verb.MUTATION);
-            TorrentCompleted status = new TorrentCompleted(mutationMessage, torrentFilesToProcess);
+            TorrentCompleted status = new TorrentCompleted(rm, torrentFilesToProcess);
+            boolean waitingForTorrents = false;
             for (File torrentFile : torrentFilesToProcess) {
+                waitingForTorrents = true;
                 manager.addTorrentFile(torrentFile, status);
+            }
+            if (!waitingForTorrents) {
+                status.finishedAll();
             }
         }
         catch (IOException e)

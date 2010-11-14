@@ -42,7 +42,6 @@ public class StageManager
     private static Map<String, ExecutorService> stages = new HashMap<String, ExecutorService>();
 
     public final static String READ_STAGE = "ROW-READ-STAGE";
-    public final static String MUTATION_TORRENT_STAGE = "ROW-MUTATION-TORRENT-STAGE";
     public final static String MUTATION_STAGE = "ROW-MUTATION-STAGE";
     public final static String STREAM_STAGE = "STREAM-STAGE";
     public final static String GOSSIP_STAGE = "GS";
@@ -56,7 +55,6 @@ public class StageManager
         stages.put(READ_STAGE, multiThreadedConfigurableStage(READ_STAGE, getConcurrentReaders()));        
         stages.put(RESPONSE_STAGE, multiThreadedStage("RESPONSE-STAGE", Math.max(2, Runtime.getRuntime().availableProcessors())));
         // the rest are all single-threaded
-        stages.put(MUTATION_TORRENT_STAGE, new JMXEnabledThreadPoolExecutor(MUTATION_TORRENT_STAGE));
         stages.put(STREAM_STAGE, new JMXEnabledThreadPoolExecutor(STREAM_STAGE));
         stages.put(GOSSIP_STAGE, new JMXEnabledThreadPoolExecutor("GMFD"));
         stages.put(AE_SERVICE_STAGE, new JMXEnabledThreadPoolExecutor(AE_SERVICE_STAGE));

@@ -46,6 +46,7 @@ import org.apache.cassandra.locator.TokenMetadata;
 import org.apache.cassandra.net.IAsyncResult;
 import org.apache.cassandra.net.Message;
 import org.apache.cassandra.net.MessagingService;
+import org.apache.cassandra.service.StorageService.Verb;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.UnavailableException;
@@ -126,6 +127,11 @@ public class StorageProxy implements StorageProxyMBean
                         if (targets.size() == 1 && targets.iterator().next().equals(destination))
                         {
                             // unhinted writes
+                            // FIXME(patrick): If we do this, we need logic to
+                            // wait for the torrent to finish downloading synchronously.
+                            // The MessagingService already handles this.
+                            // Disabling the following optimization(?).
+                            /*
                             if (destination.equals(FBUtilities.getLocalAddress()))
                             {
                                 if (logger.isDebugEnabled())
@@ -140,9 +146,10 @@ public class StorageProxy implements StorageProxyMBean
                                 StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
                             }
                             else
+                            */
                             {
                                 if (unhintedMessage == null)
-                                    unhintedMessage = rm.makeRowMutationMessage();
+                                    unhintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
                                 if (logger.isDebugEnabled())
                                     logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + destination);
                                 MessagingService.instance.sendOneWay(unhintedMessage, destination);
@@ -151,7 +158,7 @@ public class StorageProxy implements StorageProxyMBean
                         else
                         {
                             // hinted
-                            Message hintedMessage = rm.makeRowMutationMessage();
+                            Message hintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
                             for (InetAddress target : targets)
                             {
                                 if (!target.equals(destination))
@@ -219,16 +226,21 @@ public class StorageProxy implements StorageProxyMBean
                     if (targets.size() == 1 && targets.iterator().next().equals(destination))
                     {
                         // unhinted writes
+
+                        // FIXME(patrick): Local special case disabled.
+                        // See analogous change in mutate() for explanation.
+                        /*
                         if (destination.equals(FBUtilities.getLocalAddress()))
                         {
                             insertLocalMessage(rm, responseHandler);
                         }
                         else
+                        */
                         {
                             // belongs on a different server.  send it there.
                             if (unhintedMessage == null)
                             {
-                                unhintedMessage = rm.makeRowMutationMessage();
+                                unhintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
                                 MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
                             if (logger.isDebugEnabled())
@@ -239,7 +251,7 @@ public class StorageProxy implements StorageProxyMBean
                     else
                     {
                         // hinted
-                        Message hintedMessage = rm.makeRowMutationMessage();
+                        Message hintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
                         for (InetAddress target : targets)
                         {
                             if (!target.equals(destination))
