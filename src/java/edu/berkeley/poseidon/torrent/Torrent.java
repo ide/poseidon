@@ -18,6 +18,7 @@ import java.util.List;
 
 import com.google.common.base.Function;
 import com.google.common.base.Functions;
+import com.google.common.base.Objects;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
@@ -39,7 +40,6 @@ public class Torrent {
 
     public static final String DEFAULT_CREATOR = "UCB Poseidon/0.1";
     public static final String DEFAULT_ENCODING = "UTF-8";
-    public static final int DEFAULT_PIECE_LENGTH = 512 * 1024;
 
     private ImmutableList<ImmutableList<String>> announceList;
     private long creationDate;
@@ -66,8 +66,8 @@ public class Torrent {
         creationDate = firstNonNull(builder.creationDate,
                                     System.currentTimeMillis() / 1000);
         comment = builder.comment;
-        creator = builder.creator;
-        encoding = builder.encoding;
+        creator = firstNonNull(builder.creator, DEFAULT_CREATOR);
+        encoding = firstNonNull(builder.encoding, DEFAULT_ENCODING);
 
         pieceLength = builder.pieceLength;
         pieceHashes = builder.pieceHashes;
@@ -120,6 +120,21 @@ public class Torrent {
 
     public long getLength() {
         return length;
+    }
+
+    @Override
+    public String toString() {
+        return Objects.toStringHelper(this)
+            .add("announce-list", getAnnounceList())
+            .add("creation date", getCreationDate())
+            .add("comment", getComment())
+            .add("encoding", getEncoding())
+            .add("piece length", getPieceLength())
+            .add("pieces", getPieceHashes())
+            .add("private", isPrivate() ? "1" : "0")
+            .add("name", getName())
+            .add("length", getLength())
+            .toString();
     }
 
     public static class Builder {
@@ -227,6 +242,8 @@ public class Torrent {
      */
     public static class PieceHasher extends Builder {
 
+        public static final int DEFAULT_PIECE_LENGTH = 512 * 1024;
+
         private final MessageDigest sha1;
 
         protected List<File> files = Lists.newArrayList();
@@ -269,6 +286,10 @@ public class Torrent {
         @Override
         public Torrent build() throws TorrentException {
             checkState(!files.isEmpty());
+            if (pieceLength <= 0) {
+                setPieceLength(DEFAULT_PIECE_LENGTH);
+            }
+
             try {
                 setPieceHashes(computePieceHashes());
             } catch (IOException e) {
