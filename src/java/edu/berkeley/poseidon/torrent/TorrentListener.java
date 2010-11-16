@@ -6,5 +6,5 @@ public interface TorrentListener {
 
     void fileDownloaded(Torrent torrent, File file);
 
-    void downloadFailed(Torrent torrent, Exception error);
+    void downloadFailed(Torrent torrent, TorrentException error);
 }
