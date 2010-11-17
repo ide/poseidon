@@ -37,6 +37,7 @@ import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
 import java.util.Arrays;
+import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -349,7 +350,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.map(result.success);
+				Torrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -399,7 +400,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.map(result.success.iterator());
+				Torrentizer.deTorrentize(result.success.iterator());
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -445,7 +446,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.map(result.success.values().iterator());
+				Torrentizer.deTorrentize(result.success.values().iterator());
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -492,7 +493,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.map(result.success);
+				Torrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -586,7 +587,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.map(result.success);
+				Torrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -633,7 +634,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.map(result.success);
+				Torrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -661,9 +662,10 @@ public class Cassandra {
 			args.keyspace = keyspace;
 			args.key = key;
 			args.column_path = column_path;
-			args.value = Torrentizer.torrentize(value);
+			args.value = value;
 			args.timestamp = timestamp;
 			args.consistency_level = consistency_level;
+			args = Torrentizer.torrentize(args);
 			args.write(oprot_);
 			oprot_.writeMessageEnd();
 			oprot_.getTransport().flush();
@@ -1122,59 +1124,128 @@ public class Cassandra {
 
 
 		public static class Torrentizer {
-
-			public static void map(ColumnOrSuperColumn readVal) {
-				if (readVal.isSetSuper_column())
-					map(readVal.super_column);
-				else
-					map(readVal.column);
+			
+			public static void deTorrentize(ColumnOrSuperColumn readVal) {
+				Counter counter = new Counter();
+				deTorrentize(counter, readVal);
+				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			public static void map(Column readVal) {
+			public static void deTorrentize(Column readVal) {
+				Counter counter = new Counter();
+				deTorrentize(counter, readVal);
+				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
+			}
+
+			public static void deTorrentize(SuperColumn readVal) {
+				Counter counter = new Counter();
+				deTorrentize(counter, readVal);
+				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
+			}
+
+			public static void deTorrentize(java.util.Iterator<ColumnOrSuperColumn> readVal) {
+				Counter counter = new Counter();
+				deTorrentize(counter, readVal);
+				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
+			}
+
+			public static void deTorrentize(Map<String,List<ColumnOrSuperColumn>> readVal) {
+				Counter counter = new Counter();
+				deTorrentize(counter, readVal);
+				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
+			}
+
+			public static void deTorrentize(List<KeySlice> readVal) {
+				Counter counter = new Counter();
+				deTorrentize(counter, readVal);
+				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
+			}
+
+			private static void deTorrentize(Counter counter, Column readVal) {
+				if (true) { //readVal is a torrent file
+					counter.numRequests++;
+					(new Thread (new TorrentFetchFile(counter.numCompleted, readVal))).start();
+				}
+			}
+			
+			private static class TorrentFetchFile implements Runnable{
+				
+				private final Semaphore numCompleted;
+				private final Column readVal;
+				
+				public TorrentFetchFile (Semaphore numCompleted, Column readVal) {
+					this.numCompleted = numCompleted;
+					this.readVal = readVal;
+				}
+
+				public void run() {
+					//fetchFile using readVal and store file locator in readVal
+					numCompleted.release();
+				}
 				
 			}
 
-			public static void map(SuperColumn readVal) {
+			private static void deTorrentize(Counter counter, SuperColumn readVal) {
 				for (Column col : readVal.columns)
-					map(col);
+					deTorrentize(counter, col);
 			}
-
-			public static void map(java.util.Iterator<ColumnOrSuperColumn> readVal) {
+			
+			private static void deTorrentize(Counter counter, ColumnOrSuperColumn readVal) {
+				if (readVal.isSetSuper_column())
+					deTorrentize(counter, readVal.super_column);
+				else
+					deTorrentize(counter, readVal.column);
+			}
+			
+			private static void deTorrentize(Counter counter, java.util.Iterator<ColumnOrSuperColumn> readVal) {
 				while (readVal.hasNext()) 
-					map(readVal.next());
+					deTorrentize(counter, readVal.next());
 			}
 
-			public static void map(Map<String,List<ColumnOrSuperColumn>> readVal) {
+			private static void deTorrentize(Counter counter, Map<String,List<ColumnOrSuperColumn>> readVal) {
 				for (List<ColumnOrSuperColumn> slice : readVal.values())
-					map(slice.iterator());
+					deTorrentize(counter, slice.iterator());
 			}
 
-			public static void map(List<KeySlice> readVal) {
+			private static void deTorrentize(Counter counter, List<KeySlice> readVal) {
 				for (KeySlice kSlice : readVal)
-					map(kSlice.getColumnsIterator());
+					deTorrentize(counter, kSlice.getColumnsIterator());
 			}
 
-			public static byte[] torrentize(byte[] writeVal) {
-				if (writeVal.length > THRESHOLD)
+			public static insert_args torrentize(insert_args writeVal) {
+				//if (writeVal.length > THRESHOLD)
 					; //torrentize
 				
 				return writeVal;
 			}
 
 			public static Map<String,List<ColumnOrSuperColumn>> torrentize(Map<String,List<ColumnOrSuperColumn>> writeVal) {
-				for (List<ColumnOrSuperColumn> cf : writeVal.values())
-					for (ColumnOrSuperColumn c : cf)
-						if (c.isSetSuper_column())
-							for (Column col : c.super_column.columns)
-								col.value = torrentize(col.value);
-						else
-							c.column.value = torrentize(c.column.value);
+//				for (List<ColumnOrSuperColumn> cf : writeVal.values())
+//					for (ColumnOrSuperColumn c : cf)
+//						if (c.isSetSuper_column())
+//							for (Column col : c.super_column.columns)
+//								col.value = torrentize(col.value);
+//						else
+//							c.column.value = torrentize(c.column.value);
 							
 				return writeVal;
 			}
 
 			//A MEGABYTE
 			static int THRESHOLD = 1024*1024;
+			
+			public static class Counter {
+				Semaphore numCompleted;
+				int numRequests;
+				
+				public Counter() {
+					numCompleted = new Semaphore(Integer.MAX_VALUE, false);
+					numCompleted.acquireUninterruptibly(Integer.MAX_VALUE);
+					numRequests = 0;
+				}
+			}
+			
+			
 
 		}
 
