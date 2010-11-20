@@ -14,7 +14,7 @@ public class TorrentEncoder {
         this.bencoder = bencoder;
     }
 
-    public byte[] encode(Torrent torrent) throws IOException {
+    public byte[] encode(Torrent torrent) throws TorrentException {
         Map<String, Object> metainfo = Maps.newHashMap();
         metainfo.put("info", buildInfoDictionary(torrent));
         metainfo.put("announce", torrent.getAnnounce());
@@ -31,12 +31,15 @@ public class TorrentEncoder {
         }
 
         ByteArrayOutputStream out = new ByteArrayOutputStream();
-        bencoder.encode(metainfo, out);
+        try {
+            bencoder.encode(metainfo, out);
+        } catch (IOException e) {
+            throw new TorrentException(e);
+        }
         return out.toByteArray();
     }
 
-    private Map<String, ?> buildInfoDictionary(Torrent torrent)
-            throws IOException {
+    private Map<String, ?> buildInfoDictionary(Torrent torrent) {
         Map<String, Object> info = Maps.newHashMap();
         info.put("piece length", torrent.getPieceLength());
         info.put("pieces", torrent.getPieceHashes());
