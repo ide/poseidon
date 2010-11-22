@@ -27,6 +27,9 @@ package org.apache.cassandra.thrift;
 
 
 import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -658,41 +661,51 @@ public class Cassandra {
 
 		public void send_insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws TException
 		{
-			oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
-			insert_args args = new insert_args();
-			args.keyspace = keyspace;
-			args.key = key;
-			args.column_path = column_path;
-			args.value = value;
-			args.timestamp = timestamp;
-			args.consistency_level = consistency_level;
-			ClientTorrentizer.torrentize(args);
-			args.write(oprot_);
-			oprot_.writeMessageEnd();
-			oprot_.getTransport().flush();
+//			oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
+//			insert_args args = new insert_args();
+//			args.keyspace = keyspace;
+//			args.key = key;
+//			args.column_path = column_path;
+//			args.value = value;
+//			args.timestamp = timestamp;
+//			args.consistency_level = consistency_level;
+//			args.write(oprot_);
+//			oprot_.writeMessageEnd();
+//			oprot_.getTransport().flush();
+			
+			Column col = new Column(column_path.column, value, timestamp);
+			ColumnOrSuperColumn c = new ColumnOrSuperColumn();
+			c.setColumn(col);
+			Map<String,List<ColumnOrSuperColumn>> cfmap = new java.util.TreeMap<String,List<ColumnOrSuperColumn>>(); 
+			ArrayList<ColumnOrSuperColumn> colList = new ArrayList<ColumnOrSuperColumn>();
+			colList.add(c);
+			cfmap.put(column_path.column_family, colList);
+			send_batch_insert(keyspace, key, null, consistency_level);
 		}
 
 		public void recv_insert() throws InvalidRequestException, UnavailableException, TimedOutException, TException
 		{
-			TMessage msg = iprot_.readMessageBegin();
-			if (msg.type == TMessageType.EXCEPTION) {
-				TApplicationException x = TApplicationException.read(iprot_);
-				iprot_.readMessageEnd();
-				throw x;
-			}
-			insert_result result = new insert_result();
-			result.read(iprot_);
-			iprot_.readMessageEnd();
-			if (result.ire != null) {
-				throw result.ire;
-			}
-			if (result.ue != null) {
-				throw result.ue;
-			}
-			if (result.te != null) {
-				throw result.te;
-			}
-			return;
+//			TMessage msg = iprot_.readMessageBegin();
+//			if (msg.type == TMessageType.EXCEPTION) {
+//				TApplicationException x = TApplicationException.read(iprot_);
+//				iprot_.readMessageEnd();
+//				throw x;
+//			}
+//			insert_result result = new insert_result();
+//			result.read(iprot_);
+//			iprot_.readMessageEnd();
+//			if (result.ire != null) {
+//				throw result.ire;
+//			}
+//			if (result.ue != null) {
+//				throw result.ue;
+//			}
+//			if (result.te != null) {
+//				throw result.te;
+//			}
+//			return;
+			
+			recv_batch_insert();
 		}
 
 		public void batch_insert(String keyspace, String key, Map<String,List<ColumnOrSuperColumn>> cfmap, ConsistencyLevel consistency_level) throws InvalidRequestException, UnavailableException, TimedOutException, TException
@@ -1181,8 +1194,9 @@ public class Cassandra {
 				}
 
 				public void run() {
-					//TODO: fetchFile using readVal and store file locator in readVal
-					torrentizer.fetchFile(readVal);
+					//TODO: correctly fetchFile using readVal and store file locator in readVal
+					File file = torrentizer.fetchFile(readVal);
+					readVal.value = file.getAbsolutePath().getBytes();
 					numCompleted.release();
 				}
 				
@@ -1214,24 +1228,15 @@ public class Cassandra {
 				for (KeySlice kSlice : readVal)
 					deTorrentize(counter, kSlice.getColumnsIterator());
 			}
-
 			
-			
-			public static void torrentize(insert_args writeVal) {
-				//TODO: if (writeVal.length > THRESHOLD)
-					; //torrentize
-				//extractFileName(writeVal.key, writeVal.keyspace);
-				
-				
-			}
-			
-			
-			//TODO:
-			public static String extractFileName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
-				String fileName = "";
+			public static String extractFilePathName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
 				String delimiter = ".";
-				fileName += "";
-				return fileName;
+				return torrentizer.torrentDirectoryPathName() + File.separator + 
+				key + delimiter + 
+				keyspace + delimiter + 
+				columnFamily + delimiter + 
+				superColumnName + delimiter + 
+				columnName;
 			}
 
 			public static void torrentize(batch_insert_args writeVal) {
@@ -1241,20 +1246,20 @@ public class Cassandra {
 					for (ColumnOrSuperColumn c : cf.getValue())
 						if (c.isSetSuper_column())
 							for (Column col : c.super_column.columns)
-								torrentize(counter, col, extractFileName
+								torrentize(counter, col, extractFilePathName
 										(writeVal.key, writeVal.keyspace, cf.getKey(), c.super_column.name, col.name));
 						else
-							torrentize(counter, c.column, extractFileName
+							torrentize(counter, c.column, extractFilePathName
 									(writeVal.key, writeVal.keyspace, cf.getKey(), null, c.column.name));
 				
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 			
-			private static void torrentize(Counter counter, Column col, String fileName) {
+			private static void torrentize(Counter counter, Column col, String pathName) {
 				if (shouldTorrentize(col)) {
 					counter.numRequests++;
-					(new Thread (new TorrentSeedFile(counter.numCompleted, col, fileName), 
-							"TorrentSeedFile " + fileName)).start();
+					(new Thread (new TorrentSeedFile(counter.numCompleted, col, pathName), 
+							"TorrentSeedFile " + pathName)).start();
 				}
 			}
 
@@ -1266,17 +1271,28 @@ public class Cassandra {
 				
 				private final Semaphore numCompleted;
 				private final Column writeVal;
-				private final String fileName;
+				private final String pathName;
 				
-				public TorrentSeedFile (Semaphore numCompleted, Column writeVal, String fileName) {
+				public TorrentSeedFile (Semaphore numCompleted, Column writeVal, String pathName) {
 					this.numCompleted = numCompleted;
 					this.writeVal = writeVal;
-					this.fileName = fileName;
+					this.pathName = pathName;
 				}
 
 				public void run() {
-					File file = null;
-					//FIXME
+					File file = new File(pathName);
+					try {
+						FileOutputStream fos = new FileOutputStream(file);
+						fos.write(writeVal.value);
+						fos.close();
+					} catch (FileNotFoundException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+					
 					torrentizer.seed(file, writeVal);
 					numCompleted.release();
 				}

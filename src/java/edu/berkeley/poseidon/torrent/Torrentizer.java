@@ -18,4 +18,6 @@ public interface Torrentizer {
 	
 	void seed(File file, Column torrent);
 	
+	String torrentDirectoryPathName();
+	
 }
