@@ -26,6 +26,7 @@ package org.apache.cassandra.thrift;
  */
 
 
+import java.io.File;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -350,7 +351,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.deTorrentize(result.success);
+				ClientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -400,7 +401,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.deTorrentize(result.success.iterator());
+				ClientTorrentizer.deTorrentize(result.success.iterator());
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -446,7 +447,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.deTorrentize(result.success.values().iterator());
+				ClientTorrentizer.deTorrentize(result.success.values().iterator());
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -493,7 +494,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.deTorrentize(result.success);
+				ClientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -587,7 +588,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.deTorrentize(result.success);
+				ClientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -634,7 +635,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				Torrentizer.deTorrentize(result.success);
+				ClientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -665,7 +666,7 @@ public class Cassandra {
 			args.value = value;
 			args.timestamp = timestamp;
 			args.consistency_level = consistency_level;
-			args = Torrentizer.torrentize(args);
+			ClientTorrentizer.torrentize(args);
 			args.write(oprot_);
 			oprot_.writeMessageEnd();
 			oprot_.getTransport().flush();
@@ -706,8 +707,9 @@ public class Cassandra {
 			batch_insert_args args = new batch_insert_args();
 			args.keyspace = keyspace;
 			args.key = key;
-			args.cfmap = Torrentizer.torrentize(cfmap);
+			args.cfmap = cfmap;
 			args.consistency_level = consistency_level;
+			ClientTorrentizer.torrentize(args);
 			args.write(oprot_);
 			oprot_.writeMessageEnd();
 			oprot_.getTransport().flush();
@@ -1123,7 +1125,7 @@ public class Cassandra {
 
 
 
-		public static class Torrentizer {
+		public static class ClientTorrentizer {
 			
 			public static void deTorrentize(ColumnOrSuperColumn readVal) {
 				Counter counter = new Counter();
@@ -1162,9 +1164,9 @@ public class Cassandra {
 			}
 
 			private static void deTorrentize(Counter counter, Column readVal) {
-				if (true) { //readVal is a torrent file
+				if (torrentizer.isTorrent(readVal)) {
 					counter.numRequests++;
-					(new Thread (new TorrentFetchFile(counter.numCompleted, readVal))).start();
+					(new Thread (new TorrentFetchFile(counter.numCompleted, readVal), "TorrentFetchFile")).start();
 				}
 			}
 			
@@ -1179,7 +1181,8 @@ public class Cassandra {
 				}
 
 				public void run() {
-					//fetchFile using readVal and store file locator in readVal
+					//TODO: fetchFile using readVal and store file locator in readVal
+					torrentizer.fetchFile(readVal);
 					numCompleted.release();
 				}
 				
@@ -1212,31 +1215,83 @@ public class Cassandra {
 					deTorrentize(counter, kSlice.getColumnsIterator());
 			}
 
-			public static insert_args torrentize(insert_args writeVal) {
-				//if (writeVal.length > THRESHOLD)
+			
+			
+			public static void torrentize(insert_args writeVal) {
+				//TODO: if (writeVal.length > THRESHOLD)
 					; //torrentize
+				//extractFileName(writeVal.key, writeVal.keyspace);
 				
-				return writeVal;
+				
+			}
+			
+			
+			//TODO:
+			public static String extractFileName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
+				String fileName = "";
+				String delimiter = ".";
+				fileName += "";
+				return fileName;
 			}
 
-			public static Map<String,List<ColumnOrSuperColumn>> torrentize(Map<String,List<ColumnOrSuperColumn>> writeVal) {
-//				for (List<ColumnOrSuperColumn> cf : writeVal.values())
-//					for (ColumnOrSuperColumn c : cf)
-//						if (c.isSetSuper_column())
-//							for (Column col : c.super_column.columns)
-//								col.value = torrentize(col.value);
-//						else
-//							c.column.value = torrentize(c.column.value);
-							
-				return writeVal;
+			public static void torrentize(batch_insert_args writeVal) {
+				Counter counter = new Counter();
+				
+				for (Map.Entry<String, List<ColumnOrSuperColumn>> cf : writeVal.cfmap.entrySet())
+					for (ColumnOrSuperColumn c : cf.getValue())
+						if (c.isSetSuper_column())
+							for (Column col : c.super_column.columns)
+								torrentize(counter, col, extractFileName
+										(writeVal.key, writeVal.keyspace, cf.getKey(), c.super_column.name, col.name));
+						else
+							torrentize(counter, c.column, extractFileName
+									(writeVal.key, writeVal.keyspace, cf.getKey(), null, c.column.name));
+				
+				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
+			}
+			
+			private static void torrentize(Counter counter, Column col, String fileName) {
+				if (shouldTorrentize(col)) {
+					counter.numRequests++;
+					(new Thread (new TorrentSeedFile(counter.numCompleted, col, fileName), 
+							"TorrentSeedFile " + fileName)).start();
+				}
 			}
 
+			private static boolean shouldTorrentize(Column col) {
+				return col.value.length > MIN_FILE_SIZE;
+			}
+			
+			private static class TorrentSeedFile implements Runnable {
+				
+				private final Semaphore numCompleted;
+				private final Column writeVal;
+				private final String fileName;
+				
+				public TorrentSeedFile (Semaphore numCompleted, Column writeVal, String fileName) {
+					this.numCompleted = numCompleted;
+					this.writeVal = writeVal;
+					this.fileName = fileName;
+				}
+
+				public void run() {
+					File file = null;
+					//FIXME
+					torrentizer.seed(file, writeVal);
+					numCompleted.release();
+				}
+				
+			}
+			
 			//A MEGABYTE
-			static int THRESHOLD = 1024*1024;
+			private static int MIN_FILE_SIZE = 1024*1024;
+			
+			//FIXME
+			private static edu.berkeley.poseidon.torrent.Torrentizer torrentizer = null;
 			
 			public static class Counter {
-				Semaphore numCompleted;
-				int numRequests;
+				public Semaphore numCompleted;
+				public int numRequests;
 				
 				public Counter() {
 					numCompleted = new Semaphore(Integer.MAX_VALUE, false);
