@@ -34,7 +34,9 @@ import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 
 import edu.berkeley.poseidon.RowMutationTorrentVerbHandler;
-import edu.berkeley.poseidon.TorrentManager;
+import edu.berkeley.poseidon.torrent.TorrentException;
+import edu.berkeley.poseidon.torrent.Torrents;
+import edu.berkeley.poseidon.torrent.UTorrentClient;
 
 import org.apache.commons.lang.StringUtils;
 
@@ -126,7 +128,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         return partitioner_;
     }
 
-    public static final TorrentManager torrentManager = new TorrentManager();
+    public static UTorrentClient torrentClient = null;
 
     public Collection<Range> getLocalRanges(String table)
     {
@@ -218,7 +220,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         /* register the verb handlers */
         MessagingService.instance.registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
-        MessagingService.instance.registerVerbHandlers(Verb.MUTATION_TORRENT, new RowMutationTorrentVerbHandler(torrentManager));
+        MessagingService.instance.registerVerbHandlers(Verb.MUTATION_TORRENT, new RowMutationTorrentVerbHandler(torrentClient));
         MessagingService.instance.registerVerbHandlers(Verb.MUTATION, new RowMutationVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ_REPAIR, new ReadRepairVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.READ, new ReadVerbHandler());
@@ -249,6 +251,14 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // spin up the streaming serivice so it is available for jmx tools.
         if (StreamingService.instance == null)
             throw new RuntimeException("Streaming service is unavailable.");
+        
+        if (torrentClient == null) {
+            try {
+                torrentClient = Torrents.createUTorrentClient();
+            } catch (TorrentException e) {
+                throw new RuntimeException("Unable to create Torrent client!", e);
+            }
+        }
     }
 
     public AbstractReplicationStrategy getReplicationStrategy(String table)

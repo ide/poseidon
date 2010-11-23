@@ -20,26 +20,40 @@ import org.apache.cassandra.service.StorageService.Verb;
 import org.apache.cassandra.utils.WrappedRunnable;
 import org.apache.log4j.Logger;
 
+import edu.berkeley.poseidon.torrent.Bdecoder;
+import edu.berkeley.poseidon.torrent.Torrent;
+import edu.berkeley.poseidon.torrent.TorrentDecoder;
+import edu.berkeley.poseidon.torrent.TorrentException;
+import edu.berkeley.poseidon.torrent.TorrentListener;
+import edu.berkeley.poseidon.torrent.UTorrentClient;
+
 
 public class RowMutationTorrentVerbHandler implements IVerbHandler {
 
-    private class TorrentCompleted implements TorrentManager.SeedListener {
-        private Set<File> torrentFiles;
+    private static Logger logger_ = Logger.getLogger(RowMutationTorrentVerbHandler.class);
+
+    private class TorrentCompleted implements TorrentListener {
+        private Set<Torrent> torrentFiles;
         private Message mutation;
 
-        public TorrentCompleted (RowMutation mutation, Set<File> torrentFiles) throws IOException {
+        public TorrentCompleted (RowMutation mutation, Set<Torrent> torrentFiles) throws IOException {
             this.torrentFiles = torrentFiles;
             this.mutation = mutation.makeRowMutationMessage();
         }
 
-        public void finishedDownload(File torrentFile) {
-            torrentFiles.remove(torrentFile);
+        public synchronized void fileDownloaded(Torrent torrent, File torrentFile) {
+            torrentFiles.remove(torrent);
             if (torrentFiles.size() == 0) {
                 finishedAll();
             }
         }
-        
-        public void finishedAll() {
+
+        public synchronized void downloadFailed(Torrent torrent, TorrentException error) {
+            logger_.error("Torrent download failed: \n"+torrent.toString(), error);
+            fileDownloaded(torrent, null);
+        }
+
+        public synchronized void finishedAll() {
             Runnable runnable = new WrappedRunnable()
             {
                 public void runMayThrow() throws IOException
@@ -50,13 +64,11 @@ public class RowMutationTorrentVerbHandler implements IVerbHandler {
             StageManager.getStage(StageManager.MUTATION_STAGE).execute(runnable);
         }
     }
-    
-    private static Logger logger_ = Logger.getLogger(RowMutationTorrentVerbHandler.class);
 
-    private TorrentManager manager;
+    private UTorrentClient client_;
     
-    public RowMutationTorrentVerbHandler(TorrentManager mgr) {
-    	manager = mgr;
+    public RowMutationTorrentVerbHandler(UTorrentClient client) {
+        this.client_ = client;
     }
     
 	public void doVerb(Message message) {
@@ -67,20 +79,30 @@ public class RowMutationTorrentVerbHandler implements IVerbHandler {
             RowMutation rm = RowMutation.serializer().deserialize(new DataInputStream(buffer));
             if (logger_.isDebugEnabled())
               logger_.debug("Applying " + rm);
-            Set<File> torrentFilesToProcess = new HashSet<File>();
+            Set<Torrent> torrentFilesToProcess = new HashSet<Torrent>();
+            TorrentDecoder decoder = new TorrentDecoder(new Bdecoder());
             for (ColumnFamily cf : rm.getColumnFamilies()) {
                 for (IColumn cm : cf.getColumnsMap().values()) {
                     if (Column.isTorrent(cm)) {
-                        byte[] torrentContents = cm.value();
-                        torrentFilesToProcess.add(manager.writeTorrentFile(torrentContents));
+                        try {
+                            byte[] torrentContents = cm.value();
+                            torrentFilesToProcess.add(decoder.decode(torrentContents));
+                        } catch (TorrentException e) {
+                            logger_.error("Malformed torrent in column "+cm+".", e);
+                        }
                     }
                 }
             }
             TorrentCompleted status = new TorrentCompleted(rm, torrentFilesToProcess);
             boolean waitingForTorrents = false;
-            for (File torrentFile : torrentFilesToProcess) {
-                waitingForTorrents = true;
-                manager.addTorrentFile(torrentFile, status);
+            for (Torrent torrentFile : torrentFilesToProcess) {
+                try {
+                    waitingForTorrents = true;
+                    client_.download(torrentFile, status);
+                } catch (TorrentException e) {
+                    logger_.error("Failed to add torrent:\n"+torrentFile, e);
+                    status.downloadFailed(torrentFile, e);
+                }
             }
             if (!waitingForTorrents) {
                 status.finishedAll();
