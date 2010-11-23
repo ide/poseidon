@@ -211,7 +211,7 @@ public class RowMutation
 
     public Message makeRowMutationMessage() throws IOException
     {
-        return makeRowMutationMessage(StorageService.Verb.MUTATION);
+        return makeRowMutationMessage(StorageService.Verb.MUTATION_TORRENT);
     }
 
     public Message makeRowMutationMessage(StorageService.Verb verb) throws IOException
