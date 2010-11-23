@@ -149,7 +149,7 @@ public class StorageProxy implements StorageProxyMBean
                             */
                             {
                                 if (unhintedMessage == null)
-                                    unhintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
+                                    unhintedMessage = rm.makeRowMutationMessage();
                                 if (logger.isDebugEnabled())
                                     logger.debug("insert writing key " + rm.key() + " to " + unhintedMessage.getMessageId() + "@" + destination);
                                 MessagingService.instance.sendOneWay(unhintedMessage, destination);
@@ -158,7 +158,7 @@ public class StorageProxy implements StorageProxyMBean
                         else
                         {
                             // hinted
-                            Message hintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
+                            Message hintedMessage = rm.makeRowMutationMessage();
                             for (InetAddress target : targets)
                             {
                                 if (!target.equals(destination))
@@ -240,7 +240,7 @@ public class StorageProxy implements StorageProxyMBean
                             // belongs on a different server.  send it there.
                             if (unhintedMessage == null)
                             {
-                                unhintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
+                                unhintedMessage = rm.makeRowMutationMessage();
                                 MessagingService.instance.addCallback(responseHandler, unhintedMessage.getMessageId());
                             }
                             if (logger.isDebugEnabled())
@@ -251,7 +251,7 @@ public class StorageProxy implements StorageProxyMBean
                     else
                     {
                         // hinted
-                        Message hintedMessage = rm.makeRowMutationMessage(Verb.MUTATION_TORRENT);
+                        Message hintedMessage = rm.makeRowMutationMessage();
                         for (InetAddress target : targets)
                         {
                             if (!target.equals(destination))
