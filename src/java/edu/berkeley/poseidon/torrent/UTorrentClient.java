@@ -4,6 +4,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URI;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -26,6 +27,9 @@ import com.sun.jersey.api.client.filter.ClientFilter;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 import com.sun.jersey.api.representation.Form;
 import com.sun.jersey.multipart.FormDataMultiPart;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpHandler;
+import com.sun.net.httpserver.HttpServer;
 
 public class UTorrentClient {
 
@@ -47,6 +51,8 @@ public class UTorrentClient {
     private final ClientFilter authFilter;
     /** The base URI of the uTorrent server's REST interface. */
     private final URI serverUri;
+    /** The HTTP server, which is our mechanism for listening to uTorrent. */
+    private final HttpServer httpServer;
     /** The directory where active downloads reside. */
     private final File activeDirectory;
     /** The directory where completed downloads reside. */
@@ -68,16 +74,21 @@ public class UTorrentClient {
      * @param base the base directory where the uTorrent server resides
      * @param username the username to access the uTorrent server
      * @param password the password to access the uTorrent server
+     * @param server the HTTP server for listening to "file completed" pings
+     *        from uTorrent. The HTTP server is configured to listen to
+     *        messages from uTorrent but it is not started. This is the
      * @throws TorrentException if an error occurs while reading the
      *         configuration details
      */
     public UTorrentClient(Client client, URI uri, File base,
-                          String username, String password)
+                          String username, String password, HttpServer server)
                           throws TorrentException {
         restClient = client;
         authFilter = new HTTPBasicAuthFilter(username, password);
         serverUri = UriBuilder.fromUri(uri).replaceQuery(null).fragment(null)
                               .build();
+        httpServer = server;
+        encoder = new TorrentEncoder(new Bencoder());
 
         // Read the uTorrent server settings.
         String activeDirectory = null;
@@ -121,7 +132,13 @@ public class UTorrentClient {
             }
         }
 
-        encoder = new TorrentEncoder(new Bencoder());
+        // Configure the HTTP server to listen to messages from uTorrent.
+        setUpHttpServer();
+    }
+
+    private void setUpHttpServer() {
+        httpServer.createContext("/download-finished",
+                                 new TorrentCompletedHandler());
     }
 
     private WebResource makeWebResource(String query) throws TorrentException {
@@ -161,9 +178,7 @@ public class UTorrentClient {
         Torrent torrent = decoder.decode(torrentBytes);
         System.out.println(torrent);
 
-        UTorrentClient client = new UTorrentClient(Client.create(),
-            URI.create("http://localhost:8080/gui/"),
-            new File("C:/Users/Ide/Desktop"), "admin", "");
+        UTorrentClient client = Torrents.createUTorrentClient();
         System.out.println("Active directory :" + client.activeDirectory);
         System.out.println("Completed directory :" + client.completedDirectory);
         Torrent t = client.seed(new File("C:/Users/Ide/Desktop/Effective Java 2nd Edition.pdf"));
@@ -322,5 +337,13 @@ public class UTorrentClient {
             }
         }
         return entries;
+    }
+
+    private class TorrentCompletedHandler implements HttpHandler {
+
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+//            exchange.getRequestBody()
+        }
     }
 }
