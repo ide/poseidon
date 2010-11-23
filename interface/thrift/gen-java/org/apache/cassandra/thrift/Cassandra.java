@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -40,7 +41,6 @@ import java.util.HashSet;
 import java.util.EnumSet;
 import java.util.Collections;
 import java.util.BitSet;
-import java.util.Arrays;
 import java.util.concurrent.Semaphore;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -48,6 +48,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
+
+import edu.berkeley.poseidon.torrent.Torrentizer;
 
 public class Cassandra {
 
@@ -269,8 +271,10 @@ public class Cassandra {
 		{
 			iprot_ = iprot;
 			oprot_ = oprot;
+			clientTorrentizer = new ClientTorrentizer();
 		}
 
+		private final ClientTorrentizer clientTorrentizer;
 		protected TProtocol iprot_;
 		protected TProtocol oprot_;
 
@@ -354,7 +358,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				ClientTorrentizer.deTorrentize(result.success);
+				clientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -404,7 +408,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				ClientTorrentizer.deTorrentize(result.success.iterator());
+				clientTorrentizer.deTorrentize(result.success.iterator());
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -450,7 +454,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				ClientTorrentizer.deTorrentize(result.success.values().iterator());
+				clientTorrentizer.deTorrentize(result.success.values().iterator());
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -497,7 +501,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				ClientTorrentizer.deTorrentize(result.success);
+				clientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -591,7 +595,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				ClientTorrentizer.deTorrentize(result.success);
+				clientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -638,7 +642,7 @@ public class Cassandra {
 			result.read(iprot_);
 			iprot_.readMessageEnd();
 			if (result.isSetSuccess()) {
-				ClientTorrentizer.deTorrentize(result.success);
+				clientTorrentizer.deTorrentize(result.success);
 				return result.success;
 			}
 			if (result.ire != null) {
@@ -722,7 +726,7 @@ public class Cassandra {
 			args.key = key;
 			args.cfmap = cfmap;
 			args.consistency_level = consistency_level;
-			ClientTorrentizer.torrentize(args);
+			clientTorrentizer.torrentize(args);
 			args.write(oprot_);
 			oprot_.writeMessageEnd();
 			oprot_.getTransport().flush();
@@ -1140,50 +1144,50 @@ public class Cassandra {
 
 		public static class ClientTorrentizer {
 			
-			public static void deTorrentize(ColumnOrSuperColumn readVal) {
+			public void deTorrentize(ColumnOrSuperColumn readVal) {
 				Counter counter = new Counter();
 				deTorrentize(counter, readVal);
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			public static void deTorrentize(Column readVal) {
+			public void deTorrentize(Column readVal) {
 				Counter counter = new Counter();
 				deTorrentize(counter, readVal);
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			public static void deTorrentize(SuperColumn readVal) {
+			public void deTorrentize(SuperColumn readVal) {
 				Counter counter = new Counter();
 				deTorrentize(counter, readVal);
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			public static void deTorrentize(java.util.Iterator<ColumnOrSuperColumn> readVal) {
+			public void deTorrentize(java.util.Iterator<ColumnOrSuperColumn> readVal) {
 				Counter counter = new Counter();
 				deTorrentize(counter, readVal);
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			public static void deTorrentize(Map<String,List<ColumnOrSuperColumn>> readVal) {
+			public void deTorrentize(Map<String,List<ColumnOrSuperColumn>> readVal) {
 				Counter counter = new Counter();
 				deTorrentize(counter, readVal);
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			public static void deTorrentize(List<KeySlice> readVal) {
+			public void deTorrentize(List<KeySlice> readVal) {
 				Counter counter = new Counter();
 				deTorrentize(counter, readVal);
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			private static void deTorrentize(Counter counter, Column readVal) {
+			private void deTorrentize(Counter counter, Column readVal) {
 				if (torrentizer.isTorrent(readVal)) {
 					counter.numRequests++;
 					(new Thread (new TorrentFetchFile(counter.numCompleted, readVal), "TorrentFetchFile")).start();
 				}
 			}
 			
-			private static class TorrentFetchFile implements Runnable{
+			private class TorrentFetchFile implements Runnable{
 				
 				private final Semaphore numCompleted;
 				private final Column readVal;
@@ -1194,7 +1198,6 @@ public class Cassandra {
 				}
 
 				public void run() {
-					//TODO: correctly fetchFile using readVal and store file locator in readVal
 					File file = torrentizer.fetchFile(readVal);
 					readVal.value = file.getAbsolutePath().getBytes();
 					numCompleted.release();
@@ -1202,34 +1205,34 @@ public class Cassandra {
 				
 			}
 
-			private static void deTorrentize(Counter counter, SuperColumn readVal) {
+			private  void deTorrentize(Counter counter, SuperColumn readVal) {
 				for (Column col : readVal.columns)
 					deTorrentize(counter, col);
 			}
 			
-			private static void deTorrentize(Counter counter, ColumnOrSuperColumn readVal) {
+			private  void deTorrentize(Counter counter, ColumnOrSuperColumn readVal) {
 				if (readVal.isSetSuper_column())
 					deTorrentize(counter, readVal.super_column);
 				else
 					deTorrentize(counter, readVal.column);
 			}
 			
-			private static void deTorrentize(Counter counter, java.util.Iterator<ColumnOrSuperColumn> readVal) {
+			private  void deTorrentize(Counter counter, java.util.Iterator<ColumnOrSuperColumn> readVal) {
 				while (readVal.hasNext()) 
 					deTorrentize(counter, readVal.next());
 			}
 
-			private static void deTorrentize(Counter counter, Map<String,List<ColumnOrSuperColumn>> readVal) {
+			private  void deTorrentize(Counter counter, Map<String,List<ColumnOrSuperColumn>> readVal) {
 				for (List<ColumnOrSuperColumn> slice : readVal.values())
 					deTorrentize(counter, slice.iterator());
 			}
 
-			private static void deTorrentize(Counter counter, List<KeySlice> readVal) {
+			private  void deTorrentize(Counter counter, List<KeySlice> readVal) {
 				for (KeySlice kSlice : readVal)
 					deTorrentize(counter, kSlice.getColumnsIterator());
 			}
 			
-			public static String extractFilePathName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
+			public String extractFilePathName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
 				String delimiter = ".";
 				return torrentizer.torrentDirectoryPathName() + File.separator + 
 				key + delimiter + 
@@ -1239,7 +1242,7 @@ public class Cassandra {
 				columnName;
 			}
 
-			public static void torrentize(batch_insert_args writeVal) {
+			public void torrentize(batch_insert_args writeVal) {
 				Counter counter = new Counter();
 				
 				for (Map.Entry<String, List<ColumnOrSuperColumn>> cf : writeVal.cfmap.entrySet())
@@ -1255,7 +1258,7 @@ public class Cassandra {
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 			
-			private static void torrentize(Counter counter, Column col, String pathName) {
+			private void torrentize(Counter counter, Column col, String pathName) {
 				if (shouldTorrentize(col)) {
 					counter.numRequests++;
 					(new Thread (new TorrentSeedFile(counter.numCompleted, col, pathName), 
@@ -1267,7 +1270,7 @@ public class Cassandra {
 				return col.value.length > MIN_FILE_SIZE;
 			}
 			
-			private static class TorrentSeedFile implements Runnable {
+			private  class TorrentSeedFile implements Runnable {
 				
 				private final Semaphore numCompleted;
 				private final Column writeVal;
@@ -1286,11 +1289,11 @@ public class Cassandra {
 						fos.write(writeVal.value);
 						fos.close();
 					} catch (FileNotFoundException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
+						throw new RuntimeException("TorrentSeedFile couldn't find file");
 					} catch (IOException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
+						throw new RuntimeException("TorrentSeedFile couldn't write to file");
 					}
 					
 					torrentizer.seed(file, writeVal);
@@ -1302,8 +1305,7 @@ public class Cassandra {
 			//A MEGABYTE
 			private static int MIN_FILE_SIZE = 1024*1024;
 			
-			//FIXME
-			private static edu.berkeley.poseidon.torrent.Torrentizer torrentizer = null;
+			private final edu.berkeley.poseidon.torrent.Torrentizer torrentizer = new Torrentizer();
 			
 			public static class Counter {
 				public Semaphore numCompleted;
