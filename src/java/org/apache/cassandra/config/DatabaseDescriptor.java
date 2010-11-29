@@ -68,10 +68,10 @@ public class DatabaseDescriptor
         standard,
     }
 
-    public static int torrentWebuiPort = 8080;
+    private static int torrentWebuiPort = 8080;
     private static InetAddress torrentWebuiAddress;
 
-    public static int torrentListenPort = 8081;
+    private static int torrentListenPort = 8081;
     private static InetAddress torrentListenAddress;
 
     public static final String random = "RANDOM";
@@ -407,7 +407,7 @@ public class DatabaseDescriptor
                 torrentWebuiPort = Integer.parseInt(port);
 
             /* get the http listening address from conf file */
-            String addr = xmlUtils.getNodeValue("/Storage/TorrentListenAddress");
+            addr = xmlUtils.getNodeValue("/Storage/TorrentListenAddress");
             if (addr != null)
                 torrentListenAddress = InetAddress.getByName(addr);
 
@@ -1030,6 +1030,16 @@ public class DatabaseDescriptor
         return Collections.unmodifiableList(tableslist);
     }
 
+    public static int getTorrentWebuiPort()
+    {
+        return torrentWebuiPort;
+    }
+
+    public static int getTorrentListenPort()
+    {
+        return torrentListenPort;
+    }
+
     public static int getStoragePort()
     {
         return storagePort;
@@ -1194,6 +1204,16 @@ public class DatabaseDescriptor
         CFMetaData cfm = getCFMetaData(tableName, columnFamilyName);
         double v = (cfm == null) ? CFMetaData.DEFAULT_ROW_CACHE_SIZE : cfm.rowCacheSize;
         return (int)Math.min(FBUtilities.absoluteFromFraction(v, expectedRows), Integer.MAX_VALUE);
+    }
+
+    public static InetAddress getTorrentWebuiAddress()
+    {
+        return torrentWebuiAddress;
+    }
+
+    public static InetAddress getTorrentListenAddress()
+    {
+        return torrentListenAddress;
     }
 
     public static InetAddress getListenAddress()

@@ -8,6 +8,8 @@ import java.net.URI;
 import com.sun.jersey.api.client.Client;
 import com.sun.net.httpserver.HttpServer;
 
+import org.apache.cassandra.config.DatabaseDescriptor;
+
 /**
  * A collection of helper functions that operate on {@link Torrent} objects.
  *
@@ -17,13 +19,13 @@ public final class Torrents {
 
     private static final File UTORRENT_BASE_DIRECTORY = new File("");
     private static final URI UTORRENT_SERVER_URI =
-        URI.create("http://"+DatabaseDescriptor.torrentWebuiAddress+
-                   ":"+DatabaseDescriptor.torrentWebuiPort+"/gui/");
+        URI.create("http://"+DatabaseDescriptor.getTorrentWebuiAddress()+
+                   ":"+DatabaseDescriptor.getTorrentWebuiPort()+"/gui/");
     private static final String UTORRENT_USERNAME = "admin";
     private static final String UTORRENT_PASSWORD = "";
     private static final InetSocketAddress HTTP_LOCALHOST =
-        new InetSocketAddress(DatabaseDescriptor.torrentListenAddress,
-                              DatabaseDescriptor.torrentListenPort);
+        new InetSocketAddress(DatabaseDescriptor.getTorrentListenAddress(),
+                              DatabaseDescriptor.getTorrentListenPort());
 
     private Torrents() { }
 
