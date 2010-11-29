@@ -182,7 +182,7 @@
 	The build target builds all the .class files
     -->
     <target name="build"
-        depends="ivy-retrieve-build,build-subprojects,build-project"/>
+        depends="build-subprojects,build-project"/>
     <target name="build-subprojects"/>
     <target name="codecoverage" depends="cobertura-instrument,test,cobertura-report"/>
     	

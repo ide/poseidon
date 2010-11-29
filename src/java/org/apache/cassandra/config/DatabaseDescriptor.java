@@ -68,6 +68,12 @@ public class DatabaseDescriptor
         standard,
     }
 
+    public static int torrentWebuiPort = 8080;
+    private static InetAddress torrentWebuiAddress;
+
+    public static int torrentListenPort = 8081;
+    private static InetAddress torrentListenAddress;
+
     public static final String random = "RANDOM";
     public static final String ophf = "OPHF";
     private static int storagePort = 7000;
@@ -389,6 +395,26 @@ public class DatabaseDescriptor
                     throw new ConfigurationException("Unknown ListenAddress '" + listenAddr + "'");
                 }
             }
+
+            /* get the http listening address from conf file */
+            String addr = xmlUtils.getNodeValue("/Storage/TorrentWebuiAddress");
+            if (addr != null)
+                torrentWebuiAddress = InetAddress.getByName(addr);
+
+            /* get the uTorrent WebUI http port from conf file */
+            port = xmlUtils.getNodeValue("/Storage/TorrentWebuiPort");
+            if (port != null)
+                torrentWebuiPort = Integer.parseInt(port);
+
+            /* get the http listening address from conf file */
+            String addr = xmlUtils.getNodeValue("/Storage/TorrentListenAddress");
+            if (addr != null)
+                torrentListenAddress = InetAddress.getByName(addr);
+
+            /* get the listening ping HTTP port from conf file */
+            port = xmlUtils.getNodeValue("/Storage/TorrentListenPort");
+            if (port != null)
+                torrentListenPort = Integer.parseInt(port);
 
             /* Local IP or hostname to bind thrift server to */
             String thriftAddr = xmlUtils.getNodeValue("/Storage/ThriftAddress");

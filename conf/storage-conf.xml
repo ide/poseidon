@@ -27,6 +27,12 @@
   -->
   <ClusterName>Test Cluster</ClusterName>
 
+  <TorrentWebuiAddress>localhost</TorrentWebuiAddress>
+  <TorrentWebuiPort>8080</TorrentWebuiPort>
+
+  <TorrentListenAddress>localhost</TorrentListenAddress>
+  <TorrentListenPort>8081</TorrentListenPort>
+
   <!--
    ~ Turn on to make new [non-seed] nodes automatically migrate the right data 
    ~ to themselves.  (If no InitialToken is specified, they will pick one 

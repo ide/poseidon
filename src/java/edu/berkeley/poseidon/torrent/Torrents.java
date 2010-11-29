@@ -17,11 +17,13 @@ public final class Torrents {
 
     private static final File UTORRENT_BASE_DIRECTORY = new File("");
     private static final URI UTORRENT_SERVER_URI =
-        URI.create("http://127.0.0.1:8080/gui/");
+        URI.create("http://"+DatabaseDescriptor.torrentWebuiAddress+
+                   ":"+DatabaseDescriptor.torrentWebuiPort+"/gui/");
     private static final String UTORRENT_USERNAME = "admin";
     private static final String UTORRENT_PASSWORD = "";
     private static final InetSocketAddress HTTP_LOCALHOST =
-        new InetSocketAddress("127.0.0.1", 8081);
+        new InetSocketAddress(DatabaseDescriptor.torrentListenAddress,
+                              DatabaseDescriptor.torrentListenPort);
 
     private Torrents() { }
 
