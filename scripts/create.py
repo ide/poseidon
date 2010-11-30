@@ -12,7 +12,7 @@ class Port:
     allocation = 10
 
     def __init__(self, port, host):
-        self.baseport = port
+        self.baseport = int(port)
         self.bindhost = host # e.g. 127.0.100.1, 2, etc.
 
     def cass_storage_port(self):
@@ -28,6 +28,12 @@ class Port:
         return self.baseport + 3
     def cass_http_port(self):
         return self.baseport + 4
+
+    def cass_listen_address(self):
+        """ The ip address used to connect to services running on this machine """
+        if self.bindhost == "0.0.0.0":
+            return ""
+        return self.bindhost
 
     def connect_address(self):
         """ The ip address used to connect to services running on this machine """
@@ -61,7 +67,7 @@ pex: 0
     f.close()
 
 # http://www.onemanclapping.org/2010/03/running-multiple-cassandra-nodes-on.html
-def setupCassandra(basedir, port):
+def setupCassandra(basedir, port, allNodes):
     def getXMLConfigElement(dom, key):
         return xml.getElementsByTagName(key)[0]
     def setXMLConfigValue(dom, key, value):
@@ -84,7 +90,7 @@ def setupCassandra(basedir, port):
     with open(os.path.join("conf", "storage-conf.xml")) as readCfg:
         xml = minidom.parse(readCfg)
         setXMLConfigValue(xml, "StoragePort", port.cass_storage_port())
-        setXMLConfigValue(xml, "ListenAddress", port.bind_address())
+        setXMLConfigValue(xml, "ListenAddress", port.cass_listen_address())
         setXMLConfigValue(xml, "ThriftPort", port.cass_thrift_port())
         setXMLConfigValue(xml, "ThriftAddress", port.bind_address())
 
@@ -92,6 +98,14 @@ def setupCassandra(basedir, port):
         setXMLConfigValue(xml, "TorrentListenAddress", port.bind_address())
         setXMLConfigValue(xml, "TorrentWebuiPort", port.ut_http_port())
         setXMLConfigValue(xml, "TorrentWebuiAddress", port.connect_address())
+
+        seedsElem = getXMLConfigElement(xml, "Seeds")
+        for ch in seedsElem.childNodes[:]:
+            seedsElem.removeChild(ch)
+        for n in allNodes:
+            newEl = xml.createElement("Seed")
+            newEl.appendChild(xml.createTextNode(n))
+            seedsElem.appendChild(newEl)
 
         with open(os.path.join(basedir, "conf", "storage-conf.xml"), "w") as writeCfg:
             writeCfg.write(xml.toxml())
@@ -113,7 +127,6 @@ def setupCassandra(basedir, port):
     # Create a startup script for this node.
     with open(os.path.join(basedir, "startup.sh"), "w") as writeCfg:
         writeCfg.write("""#!/bin/sh
-export CASSANDRA_INCLUDE=%s/node.in.sh
 cd %s
 if [ -e utpid.txt]; then
     UTPID=$(cat utpid.txt)
@@ -122,29 +135,35 @@ if [ -e utpid.txt]; then
         sleep 0.1
     done
 fi
-/opt/bittorrent-server-v3_0/utserver -configfile utconfig.txt -daemon -pidfile utpid.txt
+/ext/prog/utorrent-server-v3_0/utserver -configfile utconfig.txt -daemon -pidfile utpid.txt
 # Give utorrent time to start up.
-until curl -o /dev/null http://%s:%d/; do sleep 0.1; done
+until curl -o /dev/null http://%s:%d/ 2>/dev/null; do sleep 0.1; done
 sleep 0.3
+export CASSANDRA_INCLUDE=%s/node.in.sh
+cd %s
 bin/cassandra $*
-""" % (basedir, os.getcwd(), port.connect_address(), port.ut_http_port()))
+""" % (basedir, port.connect_address(), port.ut_http_port(), basedir, os.getcwd()))
     os.chmod(os.path.join(basedir, "startup.sh"), 0755)
 
-def setupDirectory(basedir, port):
+def setupDirectory(basedir, port, allNodes):
     os.mkdir(basedir)
     setupUTorrent(basedir, port)
-    setupCassandra(basedir, port)
+    setupCassandra(basedir, port, allNodes)
 
 if __name__ == '__main__':
     parser = optparse.OptionParser()
+    parser.add_option("-n", "--nodes", dest="allNodes", help="Comma-separated list of ip-addresses, including this node.")
     parser.add_option("-d", "--dir", "--db", dest="dir", help="Base directory")
     parser.add_option("-p", "--port", dest="port", help="First of %d consecutive ports."%Port.allocation, default=2020)
     parser.add_option("-l", "--listen", dest="host", help="Host to listen (default 0.0.0.0)", default="0.0.0.0")
     (options, args) = parser.parse_args()
 
-    if not options.dir or options.dir[0] == ".":
+    dir = args[0]
+    options.allNodes = options.allNodes.split(",")
+
+    if not dir or dir[0] == ".":
         print >>sys.stderr, "Cannot use current directory for configuration"
         parser.print_help()
         sys.exit(1)
 
-    setupDirectory(basedir=options.dir, port=Port(options.port, options.host))
+    setupDirectory(basedir=dir, port=Port(options.port, options.host), allNodes=options.allNodes)
