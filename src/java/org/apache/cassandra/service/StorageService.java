@@ -256,7 +256,7 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
             try {
                 torrentClient = Torrents.createUTorrentClient();
             } catch (TorrentException e) {
-                throw new RuntimeException("Unable to create Torrent client!", e);
+                //throw new RuntimeException("Unable to create Torrent client!", e);
             }
         }
     }
