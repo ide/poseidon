@@ -181,7 +181,7 @@ public class UTorrentClient {
         UTorrentClient client = Torrents.createUTorrentClient();
         System.out.println("Active directory :" + client.activeDirectory);
         System.out.println("Completed directory :" + client.completedDirectory);
-        Torrent t = client.seed(new File("C:/Users/Ide/Desktop/Effective Java 2nd Edition.pdf"));
+        Torrent t = client.seed(new File("C:/Users/Ide/Desktop/node.txt"));
         client.remove(t);
 
         client.download(t, new TorrentAdapter());
