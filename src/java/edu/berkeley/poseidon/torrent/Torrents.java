@@ -6,10 +6,12 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.net.URISyntaxException;
 
-import com.sun.jersey.api.client.Client;
-import com.sun.net.httpserver.HttpServer;
-
 import org.apache.cassandra.config.DatabaseDescriptor;
+
+import com.sun.jersey.client.apache.ApacheHttpClient;
+import com.sun.jersey.client.apache.config.ApacheHttpClientConfig;
+import com.sun.jersey.client.apache.config.DefaultApacheHttpClientConfig;
+import com.sun.net.httpserver.HttpServer;
 
 /**
  * A collection of helper functions that operate on {@link Torrent} objects.
@@ -47,7 +49,19 @@ public final class Torrents {
         } catch (IOException e) {
             throw new TorrentException(e);
         }
-        return new UTorrentClient(new Client(),
+
+        ApacheHttpClientConfig clientConfig =
+                new DefaultApacheHttpClientConfig();
+        clientConfig.getProperties()
+            .put(ApacheHttpClientConfig.PROPERTY_HANDLE_COOKIES, true);
+
+//        String host = DatabaseDescriptor.getTorrentWebuiAddress().getHostName();
+//        int port = DatabaseDescriptor.getTorrentWebuiPort();
+//        clientConfig.getState().setCredentials(null, host, port,
+//                                               UTORRENT_USERNAME,
+//                                               UTORRENT_PASSWORD);
+
+        return new UTorrentClient(ApacheHttpClient.create(clientConfig),
                                   UTORRENT_SERVER_URI,
                                   UTORRENT_BASE_DIRECTORY,
                                   UTORRENT_USERNAME,
