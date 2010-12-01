@@ -67,7 +67,7 @@ pex: 0
     f.close()
 
 # http://www.onemanclapping.org/2010/03/running-multiple-cassandra-nodes-on.html
-def setupCassandra(basedir, port, allNodes):
+def setupCassandra(basedir, port, allNodes, isCli=False):
     def getXMLConfigElement(dom, key):
         return xml.getElementsByTagName(key)[0]
     def setXMLConfigValue(dom, key, value):
@@ -78,6 +78,7 @@ def setupCassandra(basedir, port, allNodes):
         return element.childNodes[0].nodeValue
 
     os.mkdir(os.path.join(basedir, "conf"))
+    os.mkdir(os.path.join(basedir, "active-data"))
 
     # Copy all configuration files
     for f in os.listdir("conf"):
@@ -99,12 +100,16 @@ def setupCassandra(basedir, port, allNodes):
         setXMLConfigValue(xml, "TorrentWebuiPort", port.ut_http_port())
         setXMLConfigValue(xml, "TorrentWebuiAddress", port.connect_address())
 
+        setXMLConfigValue(xml, "SavedCachesDirectory", os.path.join(basedir, "active-data", "saved_caches"))
+        setXMLConfigValue(xml, "CommitLogDirectory", os.path.join(basedir, "active-data", "commitlog"))
+        setXMLConfigValue(xml, "DataFileDirectory", os.path.join(basedir, "active-data", "data"))
+
         seedsElem = getXMLConfigElement(xml, "Seeds")
         for ch in seedsElem.childNodes[:]:
             seedsElem.removeChild(ch)
         for n in allNodes:
             newEl = xml.createElement("Seed")
-            newEl.appendChild(xml.createTextNode(n))
+            newEl.appendChild(xml.createTextNode(n.connect_address()))
             seedsElem.appendChild(newEl)
 
         with open(os.path.join(basedir, "conf", "storage-conf.xml"), "w") as writeCfg:
@@ -124,14 +129,20 @@ def setupCassandra(basedir, port, allNodes):
         with open(os.path.join(basedir, "node.in.sh"), "w") as writeCfg:
             writeCfg.writelines(lines)
 
-    # Create a startup script for this node.
-    with open(os.path.join(basedir, "startup.sh"), "w") as writeCfg:
-        writeCfg.write("""#!/bin/sh
+
+    setupScript = """#!/bin/bash
 cd %s
-if [ -e utpid.txt]; then
+if [ -e utpid.txt ]; then
     UTPID=$(cat utpid.txt)
-    kill $UTPID
-    while $(ps -A | grep -q $UTPID); do
+    kill "$UTPID"
+    while $(ps -A | grep -q "$UTPID "); do
+        sleep 0.1
+    done
+fi
+if [ -e casspid.txt ]; then
+    CASSPID=$(cat casspid.txt)
+    kill "$CASSPID"
+    while $(ps -A | grep -q "$CASSPID "); do
         sleep 0.1
     done
 fi
@@ -141,29 +152,63 @@ until curl -o /dev/null http://%s:%d/ 2>/dev/null; do sleep 0.1; done
 sleep 0.3
 export CASSANDRA_INCLUDE=%s/node.in.sh
 cd %s
-bin/cassandra $*
-""" % (basedir, port.connect_address(), port.ut_http_port(), basedir, os.getcwd()))
-    os.chmod(os.path.join(basedir, "startup.sh"), 0755)
+""" % (basedir, port.connect_address(), port.ut_http_port(), basedir, os.getcwd())
 
-def setupDirectory(basedir, port, allNodes):
+    if isCli:
+        # Create a CLI script for this node.
+        with open(os.path.join(basedir, "cli.sh"), "w") as writeCfg:
+            writeCfg.write(setupScript)
+            nodeString=" ".join("'--host %s --port %d'"%(host.connect_address(), host.cass_thrift_port()) for host in allNodes)
+            writeCfg.write("""
+function testnode () {
+    echo -n | nc $2 $4
+}
+retval=1
+for node in %s; do
+    if testnode $node; then
+        bin/cassandra-cli $node $* && retval=0
+    fi
+done
+
+kill $(cat %s)
+
+exit $retval
+"""%(nodeString, os.path.join(basedir, "utpid.txt")))
+        os.chmod(os.path.join(basedir, "cli.sh"), 0755)
+    else:
+        # Create a startup script for this node.
+        with open(os.path.join(basedir, "startup.sh"), "w") as writeCfg:
+            writeCfg.write(setupScript)
+            writeCfg.write("\nbin/cassandra -p %s $*"%(os.path.join(basedir, "casspid.txt"), ))
+        os.chmod(os.path.join(basedir, "startup.sh"), 0755)
+        with open(os.path.join(basedir, "stop.sh"), "w") as writeCfg:
+            writeCfg.write("#!/bin/bash\nkill $(cat %s)\nkill $(cat %s)"%(
+                    os.path.join(basedir, "utpid.txt"),
+                    os.path.join(basedir, "casspid.txt")))
+        os.chmod(os.path.join(basedir, "stop.sh"), 0755)
+
+def setupDirectory(basedir, port, allNodes, isCli=False):
     os.mkdir(basedir)
     setupUTorrent(basedir, port)
-    setupCassandra(basedir, port, allNodes)
+    setupCassandra(basedir, port, allNodes, isCli)
 
 if __name__ == '__main__':
     parser = optparse.OptionParser()
-    parser.add_option("-n", "--nodes", dest="allNodes", help="Comma-separated list of ip-addresses, including this node.")
+    parser.add_option("-c", "--cli", action="store_true", dest="isCli", default=True, help="Set if this is a cli instance.")
+    parser.add_option("-n", "--nodes", dest="allNodes", help="Comma-separated list of ip-address:port pairs of all non-CLI nodes. Must include self.")
     parser.add_option("-d", "--dir", "--db", dest="dir", help="Base directory")
     parser.add_option("-p", "--port", dest="port", help="First of %d consecutive ports."%Port.allocation, default=2020)
     parser.add_option("-l", "--listen", dest="host", help="Host to listen (default 0.0.0.0)", default="0.0.0.0")
     (options, args) = parser.parse_args()
 
-    dir = args[0]
-    options.allNodes = options.allNodes.split(",")
+    dir = options.dir
+    allNodes = []
+    for ipPort in options.allNodes.split(","):
+        allNodes.append(Port(ipPort.split(":")[0], ipPort.split(":")[1]))
 
     if not dir or dir[0] == ".":
         print >>sys.stderr, "Cannot use current directory for configuration"
         parser.print_help()
         sys.exit(1)
 
-    setupDirectory(basedir=dir, port=Port(options.port, options.host), allNodes=options.allNodes)
+    setupDirectory(basedir=dir, port=Port(options.port, options.host), allNodes=allNodes, isCli=bool(options.isCli))
