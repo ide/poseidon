@@ -30,7 +30,7 @@ public class Torrentizer {
 	/** True iff col.value is the pathName to a file in torrentDirectory. */
 	public static boolean isPathName(Column col) {
 		//FIXME: to check col.name implies input col.value is always a filename
-		return true;
+		return false;
 	}
 	
 	/** Requires isTorrent(torrent.value) */

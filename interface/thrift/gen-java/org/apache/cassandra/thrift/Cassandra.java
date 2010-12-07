@@ -684,7 +684,7 @@ public class Cassandra {
 			ArrayList<ColumnOrSuperColumn> colList = new ArrayList<ColumnOrSuperColumn>();
 			colList.add(c);
 			cfmap.put(column_path.column_family, colList);
-			send_batch_insert(keyspace, key, null, consistency_level);
+			send_batch_insert(keyspace, key, cfmap, consistency_level);
 		}
 
 		public void recv_insert() throws InvalidRequestException, UnavailableException, TimedOutException, TException
@@ -1238,7 +1238,7 @@ public class Cassandra {
 				key + delimiter + 
 				keyspace + delimiter + 
 				columnFamily + delimiter + 
-				superColumnName + delimiter + 
+				((superColumnName == null) ? "" : superColumnName + delimiter) + 
 				columnName;
 			}
 
