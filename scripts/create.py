@@ -6,6 +6,11 @@ import optparse
 import os
 from xml.dom import minidom
 
+DEFAULT_PORT = 2020
+DEFAULT_HOST = "0.0.0.0"
+BT_PORT = 6881
+CASS_PORT = 7000
+
 class Port:
 
     # Really we need 5 but let's play it safe in case we need to add services.
@@ -17,7 +22,7 @@ class Port:
         self.torrentport = torrentport or self.baseport + 2
 
     def cass_storage_port(self):
-        return 7000 # Must be constant between all nodes
+        return CASS_PORT # Must be constant between all nodes
 
     def cass_thrift_port(self):
         return self.baseport
@@ -71,8 +76,11 @@ def setupCassandra(basedir, port, allNodes, isCli=False):
         element = getXMLConfigElement(dom, key)
         return element.childNodes[0].nodeValue
 
-    os.mkdir(os.path.join(basedir, "conf"))
-    os.mkdir(os.path.join(basedir, "active-data"))
+    try:
+        os.mkdir(os.path.join(basedir, "conf"))
+        os.mkdir(os.path.join(basedir, "active-data"))
+    except OSError:
+        pass
 
     # Copy all configuration files
     for f in os.listdir("conf"):
@@ -182,21 +190,30 @@ exit $retval
         os.chmod(os.path.join(basedir, "stop.sh"), 0755)
 
 def setupDirectory(basedir, port, allNodes, isCli=False):
-    os.mkdir(basedir)
+    try:
+        os.mkdir(basedir)
+    except OSError:
+        pass
     setupUTorrent(basedir, port)
     setupCassandra(basedir, port, allNodes, isCli)
 
 if __name__ == '__main__':
     parser = optparse.OptionParser()
     parser.add_option("-c", "--cli", action="store_true", dest="isCli", default=True, help="Set if this is a cli instance.")
+    parser.add_option("--btport", dest="btport", default=BT_PORT, help="Set the port number for bittorrent (%d or 0)"%(BT_PORT))
     parser.add_option("-n", "--nodes", dest="allNodes", help="Comma-separated list of ip-address:port pairs of all non-CLI nodes. Must include self.")
     parser.add_option("-d", "--dir", "--db", dest="dir", help="Base directory")
-    parser.add_option("-p", "--port", dest="port", help="First of %d consecutive ports."%Port.allocation, default=2020)
-    parser.add_option("-l", "--listen", dest="host", help="Host to listen (default 0.0.0.0)", default="0.0.0.0")
+    parser.add_option("-p", "--port", dest="port", help="First of %d consecutive ports."%Port.allocation, default=DEFAULT_PORT)
+    parser.add_option("-l", "--listen", dest="host", help="Host to listen (default 0.0.0.0)", default=DEFAULT_HOST)
     (options, args) = parser.parse_args()
 
     dir = options.dir
     allNodes = []
+    if not options.allNodes:
+        print >>sys.stderr, "Must specify a list of nodes"
+        parser.print_help()
+        sys.exit(1)
+
     for ipPort in options.allNodes.split(","):
         allNodes.append(Port(ipPort.split(":")[0], ipPort.split(":")[1]))
 
@@ -205,4 +222,4 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(1)
 
-    setupDirectory(basedir=dir, port=Port(options.port, options.host), allNodes=allNodes, isCli=bool(options.isCli))
+    setupDirectory(basedir=dir, port=Port(options.port, options.host, options.btport), allNodes=allNodes, isCli=bool(options.isCli))
