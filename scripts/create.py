@@ -11,9 +11,10 @@ class Port:
     # Really we need 5 but let's play it safe in case we need to add services.
     allocation = 10
 
-    def __init__(self, port, host):
+    def __init__(self, port, host, torrentport=None):
         self.baseport = int(port)
         self.bindhost = host # e.g. 127.0.100.1, 2, etc.
+        self.torrentport = torrentport or self.baseport + 2
 
     def cass_storage_port(self):
         return 7000 # Must be constant between all nodes
@@ -23,7 +24,7 @@ class Port:
     def jmx_port(self):
         return self.baseport + 1
     def ut_torrent_port(self):
-        return self.baseport + 2
+        return self.torrentport
     def ut_http_port(self):
         return self.baseport + 3
     def cass_http_port(self):
@@ -46,25 +47,18 @@ class Port:
         return self.bindhost
 
 def setupUTorrent(basedir, port):
-    f = open(os.path.join(basedir, "utconfig.txt"), "wt")
-    f.write("""
+    addLines = []
+    with open(os.path.join("utorrent-server-v3_0","utconfig.txt"), "r") as readFile:
+        lines = [l for l in readFile.xreadlines() if l.split(":", 1)[0] not in ("finish_cmd","bind_port","ut_webui_port","bind_ip")]
+    with open(os.path.join(basedir,"utconfig.txt"), "w") as writeFile:
+        writeFile.writelines(lines)
+        writeFile.write("""
+finish_cmd: "curl -o /dev/null http://%s:%d/finished?%%F"
 bind_port: %d
 ut_webui_port: %d
 bind_ip: "%s"
-finish_cmd: "curl -o /dev/null http://%s:%d/finished?%%F"
-dir_active: "ut_active"
-dir_completed: "ut_completed"
-dir_download: "ut_download"
-dir_torrent_files: "ut_torrentfiles"
-dir_temp_files: "ut_temp"
-upnp: 0
-natpmp: 0
-lsd: 0
-dht: 0
-pex: 0
-""" % (port.ut_torrent_port(), port.ut_http_port(), port.bind_address(),
-       port.connect_address(), port.cass_http_port()));
-    f.close()
+""" % (port.connect_address(), port.cass_http_port(),
+       port.ut_torrent_port(), port.ut_http_port(), port.bind_address()))
 
 # http://www.onemanclapping.org/2010/03/running-multiple-cassandra-nodes-on.html
 def setupCassandra(basedir, port, allNodes, isCli=False):
@@ -129,7 +123,7 @@ def setupCassandra(basedir, port, allNodes, isCli=False):
         with open(os.path.join(basedir, "node.in.sh"), "w") as writeCfg:
             writeCfg.writelines(lines)
 
-
+    toplevel = os.getcwd()
     setupScript = """#!/bin/bash
 cd %s
 if [ -e utpid.txt ]; then
@@ -146,13 +140,13 @@ if [ -e casspid.txt ]; then
         sleep 0.1
     done
 fi
-/ext/prog/utorrent-server-v3_0/utserver -configfile utconfig.txt -daemon -pidfile utpid.txt
+%s/utorrent-server-v3_0/utserver -configfile utconfig.txt -daemon -pidfile utpid.txt
 # Give utorrent time to start up.
 until curl -o /dev/null http://%s:%d/ 2>/dev/null; do sleep 0.1; done
 sleep 0.3
 export CASSANDRA_INCLUDE=%s/node.in.sh
 cd %s
-""" % (basedir, port.connect_address(), port.ut_http_port(), basedir, os.getcwd())
+""" % (basedir, toplevel, port.connect_address(), port.ut_http_port(), basedir, toplevel)
 
     if isCli:
         # Create a CLI script for this node.
