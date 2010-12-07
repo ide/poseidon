@@ -8,9 +8,9 @@ import optparse
 from subprocess import Popen, PIPE
 
 def getInstanceInfo(cluster=None):
-    #pipe = Popen("ec2-describe-instances", stdout=PIPE)
-    #output = pipe.communicate()[0]
-    output="""RESERVATION	r-bb214bd1	051423782292	Cassandra
+    pipe = Popen("ec2-describe-instances", stdout=PIPE)
+    output = pipe.communicate()[0]
+    """RESERVATION	r-bb214bd1	051423782292	Cassandra
 INSTANCE	i-d8c79db5	ami-2272864b	ec2-67-202-15-186.compute-1.amazonaws.com	ip-10-242-49-18.ec2.internal	running	patrick	0		t1.micro	2010-12-06T23:34:32+0000	us-east-1a	aki-427d952b		monitoring-disabled	67.202.15.186	10.242.49.18			ebs	paravirtual	
 BLOCKDEVICE	/dev/sda1	vol-fb9e5c93	2010-12-06T23:34:44.000Z	
 TAG	instance	i-d8c79db5	Cluster	test
