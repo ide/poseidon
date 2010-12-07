@@ -1259,24 +1259,42 @@ public class Cassandra {
 			}
 			
 			private void torrentize(Counter counter, Column col, String pathName) {
-				if (shouldTorrentize(col)) {
+				if (Torrentizer.isPathName(col)) {
 					counter.numRequests++;
-					(new Thread (new TorrentSeedFile(counter.numCompleted, col, pathName), 
-							"TorrentSeedFile " + pathName)).start();
+					(new Thread (new TorrentSeedFile(counter.numCompleted, col), 
+							"TorrentSeedFile " + new String(col.value))).start();
+				} else if (bigColumnVal(col)) {
+					counter.numRequests++;
+					(new Thread (new TorrentCreateAndSeedFile(counter.numCompleted, col, pathName), 
+							"TorrentCreateAndSeedFile " + pathName)).start();
 				}
 			}
+			
+			private class TorrentSeedFile implements Runnable {
+				
+				private final Semaphore numCompleted;
+				private final Column pathName;
+				
+				public TorrentSeedFile (Semaphore numCompleted, Column pathName) {
+					this.numCompleted = numCompleted;
+					this.pathName = pathName;
+				}
 
-			private static boolean shouldTorrentize(Column col) {
-				return col.value.length > MIN_FILE_SIZE;
+				public void run() {
+					File file = new File(new String(pathName.value));					
+					torrentizer.seed(file, pathName);
+					numCompleted.release();
+				}
+				
 			}
 			
-			private  class TorrentSeedFile implements Runnable {
+			private  class TorrentCreateAndSeedFile implements Runnable {
 				
 				private final Semaphore numCompleted;
 				private final Column writeVal;
 				private final String pathName;
 				
-				public TorrentSeedFile (Semaphore numCompleted, Column writeVal, String pathName) {
+				public TorrentCreateAndSeedFile (Semaphore numCompleted, Column writeVal, String pathName) {
 					this.numCompleted = numCompleted;
 					this.writeVal = writeVal;
 					this.pathName = pathName;
@@ -1302,8 +1320,12 @@ public class Cassandra {
 				
 			}
 			
+			private static boolean bigColumnVal(Column col) {
+				return (col.value.length > MIN_CREATE_FILE_SIZE);
+			}
+			
 			//A MEGABYTE
-			private static int MIN_FILE_SIZE = 1024*1024;
+			private static int MIN_CREATE_FILE_SIZE = 1024*1024;
 			
 			private final edu.berkeley.poseidon.torrent.Torrentizer torrentizer = new Torrentizer();
 			

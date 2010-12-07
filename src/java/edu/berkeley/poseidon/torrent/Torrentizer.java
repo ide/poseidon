@@ -17,13 +17,20 @@ public class Torrentizer {
 		}
 	}
 	
-	public boolean isTorrent(Column col) {
+	public static boolean isTorrent(Column col) {
 		try {
+			//FIXME: to check col.name and have col.name define the type of col?
 			decoder.decode(col.value);
 			return true;
 		} catch (TorrentException e) {
 			return false;
 		}
+	}
+	
+	/** True iff col.value is the pathName to a file in torrentDirectory. */
+	public static boolean isPathName(Column col) {
+		//FIXME: to check col.name implies input col.value is always a filename
+		return true;
 	}
 	
 	/** Requires isTorrent(torrent.value) */
