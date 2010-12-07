@@ -200,7 +200,7 @@ def setupDirectory(basedir, port, allNodes, isCli=False):
 if __name__ == '__main__':
     parser = optparse.OptionParser()
     parser.add_option("-c", "--cli", action="store_true", dest="isCli", default=True, help="Set if this is a cli instance.")
-    parser.add_option("--btport", dest="btport", default=BT_PORT, help="Set the port number for bittorrent (%d or 0)"%(BT_PORT))
+    parser.add_option("--btport", dest="btport", default=BT_PORT, help="Set the port number for bittorrent (%d or 0)"%(BT_PORT,))
     parser.add_option("-n", "--nodes", dest="allNodes", help="Comma-separated list of ip-address:port pairs of all non-CLI nodes. Must include self.")
     parser.add_option("-d", "--dir", "--db", dest="dir", help="Base directory")
     parser.add_option("-p", "--port", dest="port", help="First of %d consecutive ports."%Port.allocation, default=DEFAULT_PORT)
@@ -215,11 +215,16 @@ if __name__ == '__main__':
         sys.exit(1)
 
     for ipPort in options.allNodes.split(","):
-        allNodes.append(Port(ipPort.split(":")[0], ipPort.split(":")[1]))
+        hostport = ipPort.split(":")
+        host = hostport[0]
+        port = DEFAULT_PORT
+        if len(hostport) > 1:
+            port = hostport[1]
+        allNodes.append(Port(port, host))
 
     if not dir or dir[0] == ".":
         print >>sys.stderr, "Cannot use current directory for configuration"
         parser.print_help()
         sys.exit(1)
 
-    setupDirectory(basedir=dir, port=Port(options.port, options.host, options.btport), allNodes=allNodes, isCli=bool(options.isCli))
+    setupDirectory(basedir=dir, port=Port(int(options.port), options.host, int(options.btport)), allNodes=allNodes, isCli=bool(options.isCli))
