@@ -1,0 +1,15 @@
+token_auth_enable: 0
+dir_active: downloads
+# Leave dir_completed unspecified - we will use dir_active.
+dir_torrent_files: torrents
+dir_autoload: autoload
+dir_autoload_delete: 1
+upnp: 0
+natpmp: 0
+lsd: 0
+dht: 0
+pex: 0
+finish_cmd: "echo torrent finished %%F"
+bind_port: 6881
+ut_webui_port: 8080
+bind_ip: "0.0.0.0"
