@@ -3,6 +3,7 @@ package edu.berkeley.poseidon.torrent;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.Charset;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -50,8 +51,10 @@ public class Bencoder {
     public void encode(Map<String, ?> map, OutputStream out)
             throws IOException {    
         Preconditions.checkNotNull(map);
+	Comparator<byte[]> byteComparator =
+	    UnsignedBytes.lexicographicalComparator();
         Map<byte[], Object> sortedMap =
-            Maps.newTreeMap(UnsignedBytes.lexicographicalComparator());
+	    Maps.<byte[], byte[], Object>newTreeMap(byteComparator);
         for (Map.Entry<String, ?> entry : map.entrySet()) {
             sortedMap.put(stringToBytes(entry.getKey()), entry.getValue());
         }

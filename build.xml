@@ -67,19 +67,12 @@
     <!-- 
 	 Add all the dependencies.
     -->
-    <path id="autoivy.classpath">
-        <fileset dir="${build.dir.lib}">
-          <include name="**/*.jar" />
-        </fileset>
-        <pathelement location="${build.dir}/ivy-${ivy.version}.jar"/>
-    </path>
     <path id="cassandra.classpath">
         <pathelement location="${cobertura.classes.dir}"/>
         <pathelement location="${build.classes}"/>
         <fileset dir="${build.lib}">
           <include name="**/*.jar" />
         </fileset>
-        <path refid="autoivy.classpath" />
     </path>
 
     <!--
@@ -122,32 +115,6 @@
          <arg value="-fo" />
          <arg value="${build.src.gen-java}/org/apache/cassandra/cli/" />
       </java> 
-    </target>
-
-    <!--
-       Fetch Ivy and Cassandra's dependencies
-
-       These targets are intentionally free of dependencies so that they
-       can be run stand-alone from a binary release artifact.
-    -->
-    <target name="ivy-download" unless="ivy.jar.exists">
-      <echo>Downloading Ivy...</echo>
-      <mkdir dir="${build.dir}" />
-      <get src="${ivy.url}/${ivy.version}/ivy-${ivy.version}.jar"
-           dest="${build.dir}/ivy-${ivy.version}.jar" usetimestamp="true" />
-    </target>
-
-    <target name="ivy-init" depends="ivy-download" unless="ivy.initialized">
-      <mkdir dir="${build.dir.lib}"/>
-      <taskdef resource="org/apache/ivy/ant/antlib.xml"
-               uri="antlib:org.apache.ivy.ant"
-               classpathref="autoivy.classpath"/>
-      <property name="ivy.initialized" value="true"/>
-    </target>
-
-    <target name="ivy-retrieve-build" depends="ivy-init">
-      <ivy:retrieve type="jar,source" sync="true"
-             pattern="${build.dir.lib}/[type]s/[artifact]-[revision].[ext]" />
     </target>
 
     <!--
@@ -217,7 +184,7 @@
     </target>
 
     <!-- creates a release tarball -->	
-    <target name="release" depends="jar,javadoc,rat-init">
+    <target name="release" depends="jar,javadoc">
       <mkdir dir="${dist.dir}"/>
       <copy todir="${dist.dir}/lib">
         <fileset dir="${build.lib}"/>
@@ -265,15 +232,7 @@
           </not>
         </tarfileset>	
       </tar>
-      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
-                  reportFile="${build.dir}/${final.name}-bin.rat.txt">
-        <tarfileset>
-          <gzipresource>
-            <file file="${build.dir}/${final.name}-bin.tar.gz" />
-          </gzipresource>
-        </tarfileset>
-      </rat:report>
-
+      
       <tar compression="gzip" longfile="gnu"
         destfile="${build.dir}/${final.name}-src.tar.gz">
 
@@ -285,14 +244,6 @@
           <exclude name=".git/**" />
         </tarfileset>
       </tar>
-      <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
-                  reportFile="${build.dir}/${final.name}-src.rat.txt">
-        <tarfileset>
-          <gzipresource>
-            <file file="${build.dir}/${final.name}-src.tar.gz" />
-          </gzipresource>
-        </tarfileset>
-      </rat:report>
     </target>
 
   <target name="build-test" depends="build" description="Build the Cassandra classes">
@@ -369,50 +320,6 @@
       datafile="${cobertura.datafile}"/>
     <cobertura-report format="xml" destdir="${cobertura.report.dir}" srcdir="${build.src}"
       datafile="${cobertura.datafile}"/>
-  </target>
-
-  <!--
-    License audit tool
-  -->
-  <target name="rat-init" depends="ivy-retrieve-build">
-    <typedef resource="org/apache/rat/anttasks/antlib.xml"
-             uri="antlib:org.apache.rat.anttasks">
-      <classpath>
-        <fileset dir="${build.dir.lib}">
-          <include name="**/apache-rat*.jar"/>
-          <include name="**/commons-*.jar"/>
-        </fileset>
-      </classpath>
-    </typedef>
-  </target>
-
-  <target name="rat-check" depends="rat-init">
-    <rat:report xmlns:rat="antlib:org.apache.rat.anttasks"
-                reportFile="${build.dir}/rat-report.log">
-      <fileset dir="."  excludesfile=".rat-excludes" />
-    </rat:report>
-    <condition property="rat.passed">
-      <isfileselected file="${build.dir}/rat-report.log">
-        <containsregexp expression="^0 Unknown Licenses"/>
-      </isfileselected>
-    </condition>
-    <fail unless="rat.passed">Unknown licenses: See build/rat-report.log.</fail>
-  </target>
-
-  <target name="rat-write" depends="rat-init">
-    <echo>RAT: invoking addLicense to write missing headers</echo>
-    <java classname="org.apache.rat.Report" fork="true"
-          output="${build.dir}/rat-report.log">
-      <classpath>
-        <fileset dir="${build.dir.lib}">
-          <include name="**/apache-rat*.jar"/>
-          <include name="**/commons-*.jar"/>
-        </fileset>
-      </classpath>
-      <arg value="-a" />
-      <arg value="--force" />
-      <arg value="." />
-    </java>
   </target>
 	
   <target name="javadoc" depends="init">
