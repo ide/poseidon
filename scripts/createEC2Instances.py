@@ -64,7 +64,7 @@ def createInstances(basedir, instInfo, certfile):
 for sshHost in %s; do
     ssh -i %s $sshHost '%s/startup.sh'
 done
-"""%(' '.join(allNodes), certfile, basedir))
+"""%(' '.join(sshHosts), certfile, basedir))
     os.chmod(startAllScript, 0755)
     stopAllScript = "%s/stopall.sh"%(basedir, )
     with open(stopAllScript, 'w') as script:
@@ -72,7 +72,7 @@ done
 for sshHosts in %s; do
     ssh -i %s $sshHost '%s/stop.sh'
 done
-"""%(' '.join(allNodes), certfile, basedir))
+"""%(' '.join(sshHosts), certfile, basedir))
     os.chmod(stopAllScript, 0755)
 
 if __name__=="__main__":

@@ -199,7 +199,7 @@ def setupDirectory(basedir, port, allNodes, isCli=False):
 
 if __name__ == '__main__':
     parser = optparse.OptionParser()
-    parser.add_option("-c", "--cli", action="store_true", dest="isCli", default=True, help="Set if this is a cli instance.")
+    parser.add_option("-c", "--cli", action="store_true", dest="isCli", default=False, help="Set if this is a cli instance.")
     parser.add_option("--btport", dest="btport", default=BT_PORT, help="Set the port number for bittorrent (%d or 0)"%(BT_PORT,))
     parser.add_option("-n", "--nodes", dest="allNodes", help="Comma-separated list of ip-address:port pairs of all non-CLI nodes. Must include self.")
     parser.add_option("-d", "--dir", "--db", dest="dir", help="Base directory")
@@ -209,6 +209,7 @@ if __name__ == '__main__':
 
     dir = options.dir
     allNodes = []
+    print "isCli: %s"%(repr(options.isCli),)
     if not options.allNodes:
         print >>sys.stderr, "Must specify a list of nodes"
         parser.print_help()
@@ -227,4 +228,5 @@ if __name__ == '__main__':
         parser.print_help()
         sys.exit(1)
 
-    setupDirectory(basedir=dir, port=Port(int(options.port), options.host, int(options.btport)), allNodes=allNodes, isCli=bool(options.isCli))
+    setupDirectory(basedir=dir, port=Port(int(options.port), options.host, int(options.btport)), allNodes=allNodes, isCli=options.isCli)
+    print "Finished setting up directory %s"%(dir,)
