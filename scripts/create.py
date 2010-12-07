@@ -51,6 +51,7 @@ def setupUTorrent(basedir, port):
     with open(os.path.join("utorrent-server-v3_0","utconfig.txt"), "r") as readFile:
         lines = [l for l in readFile.xreadlines() if l.split(":", 1)[0] not in ("finish_cmd","bind_port","ut_webui_port","bind_ip")]
     with open(os.path.join(basedir,"utconfig.txt"), "w") as writeFile:
+        writeFile.writelines(lines)
         writeFile.write("""
 finish_cmd: "curl -o /dev/null http://%s:%d/finished?%%F"
 bind_port: %d
