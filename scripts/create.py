@@ -51,15 +51,13 @@ def setupUTorrent(basedir, port):
     with open(os.path.join("utorrent-server-v3_0","utconfig.txt"), "r") as readFile:
         lines = [l for l in readFile.xreadlines() if l.split(":", 1)[0] not in ("finish_cmd","bind_port","ut_webui_port","bind_ip")]
     with open(os.path.join(basedir,"utconfig.txt"), "w") as writeFile:
-        writeFile
-    f.write("""
+        writeFile.write("""
 finish_cmd: "curl -o /dev/null http://%s:%d/finished?%%F"
 bind_port: %d
 ut_webui_port: %d
 bind_ip: "%s"
 """ % (port.connect_address(), port.cass_http_port(),
-       port.ut_torrent_port(), port.ut_http_port(), port.bind_address()));
-    f.close()
+       port.ut_torrent_port(), port.ut_http_port(), port.bind_address()))
 
 # http://www.onemanclapping.org/2010/03/running-multiple-cassandra-nodes-on.html
 def setupCassandra(basedir, port, allNodes, isCli=False):
