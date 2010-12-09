@@ -29,9 +29,17 @@ def createInstances(basedir, clusterid, num):
                               allNodes,
                               isCli=True)
 
+	restartAllScript = "%s/restartall.sh"%(basedir, )
+	with open(restartAllScript, 'w') as script:
+		script.write("""#!/bin/bash -x
+for dir in {0..%d}; do
+	%s/$dir/restart.sh
+done
+"""%(num-1, basedir))
+	os.chmod(restartAllScript, 0755)
 	startAllScript = "%s/startall.sh"%(basedir, )
 	with open(startAllScript, 'w') as script:
-		script.write("""#!/bin/bash
+		script.write("""#!/bin/bash -x
 for dir in {0..%d}; do
 	%s/$dir/startup.sh
 done
@@ -39,7 +47,7 @@ done
 	os.chmod(startAllScript, 0755)
 	stopAllScript = "%s/stopall.sh"%(basedir, )
 	with open(stopAllScript, 'w') as script:
-		script.write("""#!/bin/bash
+		script.write("""#!/bin/bash -x
 for dir in {0..%d}; do
 	%s/$dir/stop.sh
 done

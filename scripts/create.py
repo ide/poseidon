@@ -132,8 +132,11 @@ def setupCassandra(basedir, port, allNodes, isCli=False):
             writeCfg.writelines(lines)
 
     toplevel = os.getcwd()
-    setupScript = """#!/bin/bash
+    killScript = """#!/bin/bash
 cd %s
+
+set -x
+
 if [ -e utpid.txt ]; then
     UTPID=$(cat utpid.txt)
     kill "$UTPID"
@@ -148,23 +151,36 @@ if [ -e casspid.txt ]; then
         sleep 0.1
     done
 fi
-%s/utorrent-server-v3_0/utserver -configfile utconfig.txt -daemon -pidfile utpid.txt
+""" % (basedir, )
+    startScript = """#!/bin/bash
+function testnode () {
+    echo -n | nc $2 $4
+}
+
+set -x
+
+cd %s
+if curl -o /dev/null http://%s:%d/ 2>/dev/null; then
+    true
+else
+    %s/utorrent-server-v3_0/utserver -configfile utconfig.txt -daemon -pidfile utpid.txt >/dev/null </dev/null 2>/dev/null
+fi
 # Give utorrent time to start up.
-until curl -o /dev/null http://%s:%d/ 2>/dev/null; do sleep 0.1; done
+until curl -o /dev/null http://%s:%d/ 2>/dev/null; do sleep 0.1; set +x; done
+
+set -x
+
 sleep 0.3
 export CASSANDRA_INCLUDE=%s/node.in.sh
 cd %s
-""" % (basedir, toplevel, port.connect_address(), port.ut_http_port(), basedir, toplevel)
+""" % (basedir, port.connect_address(), port.ut_http_port(), toplevel, port.connect_address(), port.ut_http_port(), basedir, toplevel)
 
     if isCli:
         # Create a CLI script for this node.
         with open(os.path.join(basedir, "cli.sh"), "w") as writeCfg:
-            writeCfg.write(setupScript)
+            writeCfg.write(killScript + startScript)
             nodeString=" ".join("'--host %s --port %d'"%(host.connect_address(), host.cass_thrift_port()) for host in allNodes)
             writeCfg.write("""
-function testnode () {
-    echo -n | nc $2 $4
-}
 retval=1
 for node in %s; do
     if testnode $node; then
@@ -178,15 +194,35 @@ exit $retval
 """%(nodeString, os.path.join(basedir, "utpid.txt")))
         os.chmod(os.path.join(basedir, "cli.sh"), 0755)
     else:
+        startCassandra = """
+basedir="%s"
+if [ -e $basedir/casspid.txt ]; then
+    CASSPID=$(cat $basedir/casspid.txt)
+    if ps -A | grep -q "$CASSPID "; then
+        echo "Already running $CASSPID"
+        exit 0
+    fi
+fi
+bin/cassandra -p $basedir/casspid.txt >$basedir/cassandra-output.txt 2>&1 </dev/null $*
+
+until testnode -h %s -p %d 2>/dev/null; do sleep 0.1; set +x; done
+
+set -x
+echo "Done"
+
+"""%(basedir, port.connect_address(), port.cass_thrift_port())
         # Create a startup script for this node.
+        with open(os.path.join(basedir, "restart.sh"), "w") as writeCfg:
+            writeCfg.write(killScript)
+            writeCfg.write(startScript)
+            writeCfg.write(startCassandra)
+        os.chmod(os.path.join(basedir, "restart.sh"), 0755)
         with open(os.path.join(basedir, "startup.sh"), "w") as writeCfg:
-            writeCfg.write(setupScript)
-            writeCfg.write("\nbin/cassandra -p %s $*"%(os.path.join(basedir, "casspid.txt"), ))
+            writeCfg.write(startScript)
+            writeCfg.write(startCassandra)
         os.chmod(os.path.join(basedir, "startup.sh"), 0755)
         with open(os.path.join(basedir, "stop.sh"), "w") as writeCfg:
-            writeCfg.write("#!/bin/bash\nkill $(cat %s)\nkill $(cat %s)"%(
-                    os.path.join(basedir, "utpid.txt"),
-                    os.path.join(basedir, "casspid.txt")))
+            writeCfg.write(killScript)
         os.chmod(os.path.join(basedir, "stop.sh"), 0755)
 
 def setupDirectory(basedir, port, allNodes, isCli=False):

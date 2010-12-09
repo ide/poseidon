@@ -58,10 +58,20 @@ def createInstances(basedir, instInfo, certfile):
 			  [create.Port(create.DEFAULT_PORT, n, create.BT_PORT) for n in allNodes],
 			  isCli=True)
 
+    restartAllScript = "%s/restartall.sh"%(basedir,)
+    with open(restartAllScript, 'w') as script:
+        script.write("""#!/bin/bash
+for sshHost in %s; do
+    echo $sshHost
+    ssh -i %s $sshHost '%s/restart.sh'
+done
+"""%(' '.join(sshHosts), certfile, basedir))
+    os.chmod(restartAllScript, 0755)
     startAllScript = "%s/startall.sh"%(basedir,)
     with open(startAllScript, 'w') as script:
         script.write("""#!/bin/bash
 for sshHost in %s; do
+    echo $sshHost
     ssh -i %s $sshHost '%s/startup.sh'
 done
 """%(' '.join(sshHosts), certfile, basedir))
@@ -69,7 +79,8 @@ done
     stopAllScript = "%s/stopall.sh"%(basedir, )
     with open(stopAllScript, 'w') as script:
         script.write("""#!/bin/bash
-for sshHosts in %s; do
+for sshHost in %s; do
+    echo $sshHost
     ssh -i %s $sshHost '%s/stop.sh'
 done
 """%(' '.join(sshHosts), certfile, basedir))
