@@ -19,6 +19,7 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.UriBuilder;
 
 import org.apache.cassandra.utils.Pair;
+import org.apache.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
@@ -41,6 +42,8 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
 
 public class UTorrentClient {
+
+    private static Logger logger = Logger.getLogger(UTorrentClient.class);
 
     /**
      * The duration in milliseconds for which the CSRF token is valid.
@@ -372,7 +375,6 @@ public class UTorrentClient {
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-            System.out.println(exchange);
             String query = streamContents(exchange.getRequestBody(), "UTF-8");
             MultivaluedMap<String, String> arguments =
                 UriComponent.decodeQuery(query, true);
@@ -397,8 +399,9 @@ public class UTorrentClient {
                                                     new TorrentException(error));
                         }
                     } catch (Exception e) {
-                        // TODO: Log the exception, but continue. The logger
-                        // must be thread-safe to write to.
+                        String error = "callback for torrent " + torrentName +
+                                       " failed";
+                        logger.error(error, e);
                     }
                 }
                 callbackRegistry.removeAll(torrentName);
