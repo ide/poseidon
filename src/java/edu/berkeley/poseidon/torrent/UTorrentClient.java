@@ -8,8 +8,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.URI;
-import java.util.Collection;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -154,6 +154,11 @@ public class UTorrentClient {
     private void setUpHttpServer() {
         httpServer.createContext("/download-finished",
                                  new TorrentCompletedHandler());
+        httpServer.start();
+    }
+
+    public void destroy() {
+        httpServer.stop(0);
     }
 
     private WebResource makeWebResource(String query) throws TorrentException {
@@ -187,7 +192,7 @@ public class UTorrentClient {
     }
 
     public static void main(String[] args) throws Exception {
-        File torrentFile = new File("C:/Users/Ide/Desktop/ml.torrent");
+        File torrentFile = new File("utorrent-server-v3_0/example.torrent");
         byte[] torrentBytes = Files.toByteArray(torrentFile);
         TorrentDecoder decoder = new TorrentDecoder(new Bdecoder());
         Torrent torrent = decoder.decode(torrentBytes);
@@ -196,11 +201,14 @@ public class UTorrentClient {
         UTorrentClient client = Torrents.createUTorrentClient();
         System.out.println("Active directory :" + client.activeDirectory);
         System.out.println("Completed directory :" + client.completedDirectory);
+
         Torrent t = client.seed(new File("C:/Users/Ide/Desktop/node.txt"));
         client.remove(t);
 
         client.download(t, new TorrentAdapter());
         client.remove(t);
+
+        client.destroy();
     }
 
     public File getActiveDirectory() {
@@ -364,16 +372,17 @@ public class UTorrentClient {
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
+            System.out.println(exchange);
             String query = streamContents(exchange.getRequestBody(), "UTF-8");
             MultivaluedMap<String, String> arguments =
                 UriComponent.decodeQuery(query, true);
-            String torrentName = arguments.getFirst("torrent");
+            String torrentName = arguments.getFirst("name");
             File torrentFile = new File(getCompletedDirectory(),
                                         arguments.getFirst("file"));
 
             File downloaded = new File(getCompletedDirectory(), torrentName);
             boolean successful = downloaded.canRead();
-            
+
             synchronized (callbackRegistry) {
                 for (Callback callback : callbackRegistry.get(torrentName)) {
                     Torrent torrent = callback.getTorrent();
@@ -388,11 +397,15 @@ public class UTorrentClient {
                                                     new TorrentException(error));
                         }
                     } catch (Exception e) {
-                        // TODO: Log the exception, but continue.
+                        // TODO: Log the exception, but continue. The logger
+                        // must be thread-safe to write to.
                     }
                 }
                 callbackRegistry.removeAll(torrentName);
             }
+
+            PrintWriter out = new PrintWriter(exchange.getResponseBody());
+            out.println("callbacks processed");
         }
 
         private String streamContents(InputStream in, String charset)
