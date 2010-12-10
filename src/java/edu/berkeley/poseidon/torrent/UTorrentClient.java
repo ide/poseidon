@@ -10,6 +10,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.URI;
+import java.util.Collection;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -204,7 +205,21 @@ public class UTorrentClient {
         UTorrentClient client = Torrents.createUTorrentClient();
         System.out.println("Active directory :" + client.activeDirectory);
         System.out.println("Completed directory :" + client.completedDirectory);
-
+client.download(torrent, new TorrentAdapter() {
+    
+    @Override
+    public void fileDownloaded(Torrent torrent, File file) {
+        System.out.println(torrent);
+        System.out.println(file);
+    }
+    
+    @Override
+    public void downloadFailed(Torrent torrent, TorrentException error) {
+        System.out.println(torrent);
+        System.out.println(error);
+    }
+});
+synchronized(client) { client.wait(); }
         Torrent t = client.seed(new File("C:/Users/Ide/Desktop/node.txt"));
         client.remove(t);
 
@@ -253,9 +268,18 @@ public class UTorrentClient {
     public void download(Torrent torrent, TorrentListener listener)
             throws TorrentException {
         // Register the listener that is notified when a torrent completes.
-        callbackRegistry.put(torrent.getName(),
-                             new Callback(torrent, listener));
-        addTorrent(torrent);
+        Callback callback = new Callback(torrent, listener);
+        callbackRegistry.put(torrent.getName(), callback);
+
+        boolean added = false;
+        try {
+            addTorrent(torrent);
+            added = true;
+        } finally {
+            if (!added) {
+                callbackRegistry.remove(torrent.getName(), callback);
+            }
+        }
     }
 
     /**
@@ -378,37 +402,55 @@ public class UTorrentClient {
             String query = streamContents(exchange.getRequestBody(), "UTF-8");
             MultivaluedMap<String, String> arguments =
                 UriComponent.decodeQuery(query, true);
-            String torrentName = arguments.getFirst("name");
-            File torrentFile = new File(getCompletedDirectory(),
-                                        arguments.getFirst("file"));
+            PrintWriter out = new PrintWriter(exchange.getResponseBody());
 
-            File downloaded = new File(getCompletedDirectory(), torrentName);
-            boolean successful = downloaded.canRead();
+            if (!arguments.containsKey("name") ||
+                    !arguments.containsKey("file")) {
+                exchange.sendResponseHeaders(400, 0);
+                out.println("must specify torrent name and file");
+            } else {
+                exchange.sendResponseHeaders(200, 0);
+                String name = arguments.getFirst("name");
+                File file = new File(getCompletedDirectory(),
+                                     arguments.getFirst("file"));
+                invokeCallbacks(name, file, out);
+            }
+            out.flush();
+            exchange.close();
+        }
+
+        private void invokeCallbacks(String name, File file,
+                                     PrintWriter out) throws IOException {
+            boolean successful = file.canRead();
+            int called;
+            int exceptions = 0;
 
             synchronized (callbackRegistry) {
-                for (Callback callback : callbackRegistry.get(torrentName)) {
+                Collection<Callback> callbacks = callbackRegistry.get(name);
+                called = callbacks.size();
+                for (Callback callback : callbacks) {
                     Torrent torrent = callback.getTorrent();
                     TorrentListener listener = callback.getListener();
                     try {
                         if (successful) {
-                            listener.fileDownloaded(torrent, torrentFile);
+                            listener.fileDownloaded(torrent, file);
                         } else {
-                            String error = "file is not readable at " +
-                                           downloaded.getPath();
-                            listener.downloadFailed(torrent,
-                                                    new TorrentException(error));
+                            String error =
+                                "file is not readable at " + file.getPath();
+                            listener.downloadFailed(
+                                torrent, new TorrentException(error));
                         }
                     } catch (Exception e) {
-                        String error = "callback for torrent " + torrentName +
-                                       " failed";
-                        logger.error(error, e);
+                        exceptions++;
+                        logger.error("callback for torrent " + name + " failed",
+                                     e);
                     }
                 }
-                callbackRegistry.removeAll(torrentName);
+                callbackRegistry.removeAll(name);
             }
 
-            PrintWriter out = new PrintWriter(exchange.getResponseBody());
-            out.println("callbacks processed");
+            out.println(called + " callbacks processed; " +
+                        exceptions + " threw exceptions");
         }
 
         private String streamContents(InputStream in, String charset)
