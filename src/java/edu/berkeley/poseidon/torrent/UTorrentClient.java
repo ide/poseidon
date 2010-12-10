@@ -3,9 +3,13 @@ package edu.berkeley.poseidon.torrent;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.URI;
+import java.util.Collection;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -14,18 +18,23 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.UriBuilder;
 
+import org.apache.cassandra.utils.Pair;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
 
+import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Multimap;
+import com.google.common.collect.Multimaps;
 import com.google.common.io.Files;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.filter.ClientFilter;
 import com.sun.jersey.api.client.filter.HTTPBasicAuthFilter;
 import com.sun.jersey.api.representation.Form;
+import com.sun.jersey.api.uri.UriComponent;
 import com.sun.jersey.multipart.FormDataMultiPart;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
@@ -64,6 +73,8 @@ public class UTorrentClient {
     private long csrfTokenExpiration;
 
     private final TorrentEncoder encoder;
+    /** The registry, which maps torrent names to callback listeners. */
+    private final Multimap<String, Callback> callbackRegistry;
 
     /**
      * Creates a new client for interface with uTorrent. This constructor makes
@@ -89,6 +100,10 @@ public class UTorrentClient {
                               .build();
         httpServer = server;
         encoder = new TorrentEncoder(new Bencoder());
+        // Since HTTP request threads may access the registry, it is imperative
+        // that access to it is synchronized.
+        callbackRegistry = Multimaps.synchronizedMultimap(
+            LinkedListMultimap.<String, Callback>create());
 
         // Read the uTorrent server settings.
         String activeDirectory = null;
@@ -226,19 +241,10 @@ public class UTorrentClient {
 
     public void download(Torrent torrent, TorrentListener listener)
             throws TorrentException {
+        // Register the listener that is notified when a torrent completes.
+        callbackRegistry.put(torrent.getName(),
+                             new Callback(torrent, listener));
         addTorrent(torrent);
-
-        // TODO: Register the event handler for when the torrent is complete.
-        // This entails setting up a little HTTP server or something.
-        // Then we should run this.
-        File downloaded = new File(this.getCompletedDirectory(),
-                                   torrent.getName());
-        if (downloaded.canRead()) {
-            listener.fileDownloaded(torrent, downloaded);
-        } else {
-            String error = "file is not readable at " + downloaded.getPath();
-            listener.downloadFailed(torrent, new TorrentException(error));
-        }
     }
 
     /**
@@ -339,11 +345,67 @@ public class UTorrentClient {
         return entries;
     }
 
+    private class Callback extends Pair<Torrent, TorrentListener> {
+
+        public Callback(Torrent torrent, TorrentListener listener) {
+            super(torrent, listener);
+        }
+
+        public Torrent getTorrent() {
+            return left;
+        }
+
+        public TorrentListener getListener() {
+            return right;
+        }
+    }
+
     private class TorrentCompletedHandler implements HttpHandler {
 
         @Override
         public void handle(HttpExchange exchange) throws IOException {
-//            exchange.getRequestBody()
+            String query = streamContents(exchange.getRequestBody(), "UTF-8");
+            MultivaluedMap<String, String> arguments =
+                UriComponent.decodeQuery(query, true);
+            String torrentName = arguments.getFirst("torrent");
+            File torrentFile = new File(getCompletedDirectory(),
+                                        arguments.getFirst("file"));
+
+            File downloaded = new File(getCompletedDirectory(), torrentName);
+            boolean successful = downloaded.canRead();
+            
+            synchronized (callbackRegistry) {
+                for (Callback callback : callbackRegistry.get(torrentName)) {
+                    Torrent torrent = callback.getTorrent();
+                    TorrentListener listener = callback.getListener();
+                    try {
+                        if (successful) {
+                            listener.fileDownloaded(torrent, torrentFile);
+                        } else {
+                            String error = "file is not readable at " +
+                                           downloaded.getPath();
+                            listener.downloadFailed(torrent,
+                                                    new TorrentException(error));
+                        }
+                    } catch (Exception e) {
+                        // TODO: Log the exception, but continue.
+                    }
+                }
+                callbackRegistry.removeAll(torrentName);
+            }
+        }
+
+        private String streamContents(InputStream in, String charset)
+                throws IOException {
+            StringBuilder builder = new StringBuilder();
+            BufferedReader reader = new BufferedReader(
+                new InputStreamReader(in, charset));
+            String line = reader.readLine();
+            while (line != null) {
+                builder.append(line);
+                line = reader.readLine();
+            }
+            return builder.toString();
         }
     }
 }
