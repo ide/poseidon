@@ -33,6 +33,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
 import com.google.common.collect.Multimaps;
 import com.google.common.io.Files;
+import com.google.common.io.NullOutputStream;
 import com.sun.jersey.api.client.Client;
 import com.sun.jersey.api.client.WebResource;
 import com.sun.jersey.api.client.filter.ClientFilter;
@@ -69,6 +70,8 @@ public class UTorrentClient {
     private final URI serverUri;
     /** The HTTP server, which is our mechanism for listening to uTorrent. */
     private final HttpServer httpServer;
+    /** The completion handler, which is invoked when torrents finish. */
+    private final TorrentCompletedHandler completedHandler;
     /** The directory where active downloads reside. */
     private final File activeDirectory;
     /** The directory where completed downloads reside. */
@@ -156,14 +159,14 @@ public class UTorrentClient {
         }
 
         // Configure the HTTP server to listen to messages from uTorrent.
+        completedHandler = new TorrentCompletedHandler();
         setUpHttpServer();
         logger.info("uTorrent Active directory is: " + this.activeDirectory);
         logger.info("uTorrent Completed directory is: " + this.completedDirectory);
     }
 
     private void setUpHttpServer() {
-        httpServer.createContext("/download-finished",
-                                 new TorrentCompletedHandler());
+        httpServer.createContext("/download-finished", completedHandler);
         httpServer.start();
     }
 
@@ -254,25 +257,20 @@ public class UTorrentClient {
 //            .addAnnounceUri(URI.create("udp://tracker.openbittorrent.com:80/announce"))
             .addFile(file)
             .build();
-        addTorrent(torrent);
+
         return torrent;
     }
 
     public void download(Torrent torrent, TorrentListener listener)
             throws TorrentException {
+        // Register the listener that is notified when a torrent completes.
+        Callback callback = new Callback(torrent, listener);
+        callbackRegistry.put(torrent.getName(), callback);
+
         if (isDownloaded(torrent)) {
             File file = getDownloadedFile(torrent);
-            if (file.canRead()) {
-                listener.fileDownloaded(torrent, file);
-            } else {
-                String error = "file is not readable at " + file.getPath();
-                listener.downloadFailed(torrent, new TorrentException(error));
-            }
-        } else {
-            // Register the listener that is notified when a torrent completes.
-            Callback callback = new Callback(torrent, listener);
-            callbackRegistry.put(torrent.getName(), callback);
-    
+            completedHandler.invokeCallbacks(torrent.getName(), file);
+        } else if (!isDownloading(torrent)) {
             boolean added = false;
             try {
                 addTorrent(torrent);
@@ -318,16 +316,23 @@ public class UTorrentClient {
         return !torrentEntries.isEmpty();
     }
 
+    private boolean isDownloading(Torrent torrent) throws TorrentException {
+        return getDownloadProgress(torrent) >= 0;
+    }
+
     private boolean isDownloaded(Torrent torrent) throws TorrentException {
+        // Progress is measured per mils, where 1000 represents 100%.
+        return getDownloadProgress(torrent) == 1000;
+    }
+
+    private int getDownloadProgress(Torrent torrent) throws TorrentException {
         JSONObject json = toJsonObject(makeWebResource("list=1").get(String.class));
         List<JSONArray> entries = torrentEntriesByName(torrent.getName(), json);
         if (entries.isEmpty()) {
-            return false;
+            return -1;
         }
         JSONArray entry = entries.get(0);
-        int progress = ((Number) entry.get(TORRENT_PROGRESS_INDEX)).intValue();
-        // Progress is measured per mils, where 1000 represents 100%.
-        return progress == 1000;
+        return ((Number) entry.get(TORRENT_PROGRESS_INDEX)).intValue();
     }
 
     private File getDownloadedFile(Torrent torrent) throws TorrentException {
@@ -402,7 +407,7 @@ public class UTorrentClient {
      * Converts a raw JSON string into an actual JSON object, checking that
      * uTorrent did not specify an error message.
      */
-    private JSONObject toJsonObject(String response)
+    private static JSONObject toJsonObject(String response)
             throws TorrentException {
         try {
             Object rawObject = JSONValue.parseWithException(response);
@@ -423,7 +428,7 @@ public class UTorrentClient {
         }
     }
 
-    private List<JSONArray> torrentEntriesByName(String name, JSONObject json)
+    private static List<JSONArray> torrentEntriesByName(String name, JSONObject json)
             throws TorrentException {
         List<JSONArray> entries = Lists.newArrayList();
         if (json.get("torrents") instanceof JSONArray) {
@@ -480,6 +485,15 @@ public class UTorrentClient {
             exchange.close();
         }
 
+        private void invokeCallbacks(String name, File file) {
+            try {
+                invokeCallbacks(name, file,
+                                new PrintWriter(new NullOutputStream()));
+            } catch (IOException e) {
+                logger.error("I/O error when invoking callbacks", e);
+            }
+        }
+ 
         private void invokeCallbacks(String name, File file,
                                      PrintWriter out) throws IOException {
             boolean successful = file.canRead();
