@@ -56,7 +56,8 @@ def setupUTorrent(basedir, port):
     with open(os.path.join("utorrent-server-v3_0","utconfig.txt"), "r") as readFile:
         lines = dict([(l.split(":", 1)[0].strip(), l.split(":", 1)[1].strip()) for l in readFile.xreadlines() if ":" in l and l[0]!="#"])
 
-    lines["finish_cmd"] = "curl -o /dev/null http://%s:%d/finished?%%F" % (
+    lines["finish_cmd"] = "python %s %%N %%F %s:%d" % (
+        os.path.join(os.getcwd(), "scripts", "pnotify.py"),
         port.connect_address(), port.cass_http_port())
     lines["bind_port"] = "%d" % (port.ut_torrent_port(),)
     lines["ut_webui_port"] = "%d" % (port.ut_http_port(),)
