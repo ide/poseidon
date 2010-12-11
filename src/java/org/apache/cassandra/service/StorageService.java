@@ -218,6 +218,15 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
 
         bootstrapSet = Multimaps.synchronizedSetMultimap(HashMultimap.<InetAddress, String>create());
 
+        
+        if (torrentClient == null) {
+            try {
+                torrentClient = Torrents.createUTorrentClient();
+            } catch (TorrentException e) {
+                //throw new RuntimeException("Unable to create Torrent client!", e);
+            }
+        }
+        
         /* register the verb handlers */
         MessagingService.instance.registerVerbHandlers(Verb.BINARY, new BinaryVerbHandler());
         MessagingService.instance.registerVerbHandlers(Verb.MUTATION_TORRENT, new RowMutationTorrentVerbHandler(torrentClient));
@@ -251,14 +260,6 @@ public class StorageService implements IEndPointStateChangeSubscriber, StorageSe
         // spin up the streaming serivice so it is available for jmx tools.
         if (StreamingService.instance == null)
             throw new RuntimeException("Streaming service is unavailable.");
-        
-        if (torrentClient == null) {
-            try {
-                torrentClient = Torrents.createUTorrentClient();
-            } catch (TorrentException e) {
-                //throw new RuntimeException("Unable to create Torrent client!", e);
-            }
-        }
     }
 
     public AbstractReplicationStrategy getReplicationStrategy(String table)
