@@ -13,8 +13,14 @@ def notify_poseidon(torrent_name, torrent_file, serverport):
     print connection.read()
 
 if __name__ == '__main__':
+    fp = open("/tmp/pnotify.log","at")
+    print >>fp, sys.argv
     if len(sys.argv) < 3:
         print 'Usage: python pnotify.py <name> <file> <httpserver:port>'
         sys.exit(2)
-    torrent_name, torrent_file, serverport = sys.argv[1:4]
-    notify_poseidon(torrent_name, torrent_file, serverport)
+    try:
+        torrent_name, torrent_file, serverport = sys.argv[1:4]
+        notify_poseidon(torrent_name, torrent_file, serverport)
+    except:
+        print >>fp, sys.exc_info
+    fp.close()
