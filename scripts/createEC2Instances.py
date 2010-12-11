@@ -49,12 +49,12 @@ def createInstances(basedir, instInfo, certfile):
     allNodes = ["%s"%(node["extip"]) for node in instInfo.values()]
     for sshHost in sshHosts:
         args = ["ssh", "ssh", "-i", certfile, sshHost,
-                "cd poseidon && git fetch origin && git pull origin master && python scripts/create.py --btport 6881 -n "+(','.join(allNodes))+" -d ~/"+basedir]
+                "cd poseidon && git fetch origin && git pull origin master && ant && python scripts/create.py --btport 6881 -n "+(','.join(allNodes))+" -d ~/"+basedir]
         print args
         os.spawnlp(os.P_WAIT, *args)
 
-    create.setupDirectory("%s/cli"%(basedir,),
-			  create.Port(8000, "127.0.0.1", create.BT_PORT),
+    create.setupDirectory(os.path.join(os.getcwd(),basedir,'cli'),
+			  create.Port(8000, "0.0.0.0", create.BT_PORT),
 			  [create.Port(create.DEFAULT_PORT, n, create.BT_PORT) for n in allNodes],
 			  isCli=True)
 

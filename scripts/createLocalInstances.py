@@ -10,24 +10,26 @@ def createInst(basedir, clusterid, i):
 	create.CreateInst(dir, port)
 	return port, dir
 
-def createInstances(basedir, clusterid, num):
+def createInstances(basedir, clusterid, num, anyInterface = False):
         try:
                 os.mkdir(basedir)
         except OSError:
                 pass
 	ports = [create.Port(
 		2000 + 1000 * clusterid + 10*i,
-		"127.%d.%d.1"%(clusterid, i))
+		anyInterface and "0.0.0.0" or ("127.%d.%d.1"%(clusterid, i)))
 		for i in range(1, num + 1)]
 	dirs = ["%s/%d"%(basedir, i) for i in range(num)]
 	allNodes = [p for p in ports]
 	for thisdir, thisport in zip(dirs, ports):
 		create.setupDirectory(thisdir, thisport, allNodes)
 
-        create.setupDirectory("%s/cli"%(basedir,),
-                              create.Port(2000 + 1000 * clusterid, "127.%d.%d.1"%(clusterid, 0)),
-                              allNodes,
-                              isCli=True)
+        create.setupDirectory(
+            "%s/cli"%(basedir,),
+            create.Port(2000 + 1000 * clusterid,
+                anyInterface and "0.0.0.0" or ("127.%d.%d.1"%(clusterid, 0))),
+            allNodes,
+            isCli=True)
 
 	restartAllScript = "%s/restartall.sh"%(basedir, )
 	with open(restartAllScript, 'w') as script:
@@ -57,6 +59,7 @@ done
 if __name__=="__main__":
     parser = optparse.OptionParser()
     parser.add_option("-d", "--dir", dest="dir", help="Top-level directory for all nodes")
+    parser.add_option("-a", "--any", action="store_true", default=False, dest="anyInterface", help="Bind to 0.0.0.0.")
     parser.add_option("-n", "--num", dest="numNodes", help="How many nodes to make.")
     parser.add_option("-c", "--clusterid", default=0, dest="clusterid", help="Cluster ID (default 0).")
     (options, args) = parser.parse_args()
@@ -66,4 +69,4 @@ if __name__=="__main__":
         parser.print_help()
         sys.exit(1)
 
-    createInstances(options.dir, options.clusterid, int(options.numNodes))
+    createInstances(options.dir, options.clusterid, int(options.numNodes), options.anyInterface)
