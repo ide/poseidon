@@ -9,7 +9,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.util.Collection;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -57,6 +59,7 @@ public class UTorrentClient {
     private static final int TORRENT_HASH_INDEX = 0;
     //private static final int TORRENT_STATUS_INDEX = 1;
     private static final int TORRENT_NAME_INDEX = 2;
+    private static final int TORRENT_PROGRESS_INDEX = 4;
 
     /** The REST client used to make HTTP connections to uTorrent. */
     private final Client restClient;
@@ -208,21 +211,7 @@ public class UTorrentClient {
         UTorrentClient client = Torrents.createUTorrentClient();
         System.out.println("Active directory :" + client.activeDirectory);
         System.out.println("Completed directory :" + client.completedDirectory);
-client.download(torrent, new TorrentAdapter() {
-    
-    @Override
-    public void fileDownloaded(Torrent torrent, File file) {
-        System.out.println(torrent);
-        System.out.println(file);
-    }
-    
-    @Override
-    public void downloadFailed(Torrent torrent, TorrentException error) {
-        System.out.println(torrent);
-        System.out.println(error);
-    }
-});
-synchronized(client) { client.wait(); }
+
         Torrent t = client.seed(new File("C:/Users/Ide/Desktop/node.txt"));
         client.remove(t);
 
@@ -270,17 +259,27 @@ synchronized(client) { client.wait(); }
 
     public void download(Torrent torrent, TorrentListener listener)
             throws TorrentException {
-        // Register the listener that is notified when a torrent completes.
-        Callback callback = new Callback(torrent, listener);
-        callbackRegistry.put(torrent.getName(), callback);
-
-        boolean added = false;
-        try {
-            addTorrent(torrent);
-            added = true;
-        } finally {
-            if (!added) {
-                callbackRegistry.remove(torrent.getName(), callback);
+        if (isDownloaded(torrent)) {
+            File file = getDownloadedFile(torrent);
+            if (file.canRead()) {
+                listener.fileDownloaded(torrent, file);
+            } else {
+                String error = "file is not readable at " + file.getPath();
+                listener.downloadFailed(torrent, new TorrentException(error));
+            }
+        } else {
+            // Register the listener that is notified when a torrent completes.
+            Callback callback = new Callback(torrent, listener);
+            callbackRegistry.put(torrent.getName(), callback);
+    
+            boolean added = false;
+            try {
+                addTorrent(torrent);
+                added = true;
+            } finally {
+                if (!added) {
+                    callbackRegistry.remove(torrent.getName(), callback);
+                }
             }
         }
     }
@@ -316,6 +315,64 @@ synchronized(client) { client.wait(); }
         }
 
         return !torrentEntries.isEmpty();
+    }
+
+    private boolean isDownloaded(Torrent torrent) throws TorrentException {
+        JSONObject json = toJsonObject(makeWebResource("list=1").get(String.class));
+        List<JSONArray> entries = torrentEntriesByName(torrent.getName(), json);
+        if (entries.isEmpty()) {
+            return false;
+        }
+        JSONArray entry = entries.get(0);
+        int progress = ((Number) entry.get(TORRENT_PROGRESS_INDEX)).intValue();
+        // Progress is measured per mils, where 1000 represents 100%.
+        return progress == 1000;
+    }
+
+    private File getDownloadedFile(Torrent torrent) throws TorrentException {
+        WebResource resource = makeWebResource("list=1");
+        JSONObject json = toJsonObject(resource.get(String.class));
+        List<JSONArray> entries = torrentEntriesByName(torrent.getName(), json);
+        if (entries.isEmpty()) {
+            throw new TorrentException("no entry for torrent present");
+        }
+
+        JSONArray entry = entries.get(0);
+        return new File(getCompletedDirectory(),
+                        entry.get(TORRENT_NAME_INDEX).toString());
+
+//        String hash = entry.get(TORRENT_HASH_INDEX).toString();
+//        return getDownloadedFile(hash);
+    }
+
+    @SuppressWarnings("unused")
+    private File getDownloadedFile(String hash) throws TorrentException {
+        WebResource resource;
+        try {
+            resource = makeWebResource("action=getfiles&hash=" +
+                                       URLEncoder.encode(hash, "UTF-8"));
+        } catch (UnsupportedEncodingException e) {
+            throw new TorrentException(e);
+        }
+
+        JSONObject json = toJsonObject(resource.get(String.class));
+        try {
+            JSONArray fileEntries = (JSONArray) json.get("files");
+            if (fileEntries.size() < 2) {
+                throw new TorrentException("no file entry for torrent");
+            }
+
+            if (!hash.equals(fileEntries.get(0))) {
+                String error = fileEntries.get(0) + " does not match hash";
+                throw new TorrentException(error);
+            }
+
+            JSONArray entries = (JSONArray) fileEntries.get(1);
+            JSONArray entry = (JSONArray) entries.get(0);
+            return new File(getCompletedDirectory(), entry.get(0).toString());
+        } catch (ClassCastException e) {
+            throw new TorrentException(e);
+        }
     }
 
     private void addTorrent(Torrent torrent) throws TorrentException {
