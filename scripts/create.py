@@ -52,18 +52,32 @@ class Port:
         return self.bindhost
 
 def setupUTorrent(basedir, port):
-    addLines = []
+    lines = {}
     with open(os.path.join("utorrent-server-v3_0","utconfig.txt"), "r") as readFile:
-        lines = [l for l in readFile.xreadlines() if l.split(":", 1)[0] not in ("finish_cmd","bind_port","ut_webui_port","bind_ip")]
+        lines = dict([(l.split(":", 1)[0].strip(), l.split(":", 1)[1].strip()) for l in readFile.xreadlines() if ":" in l and l[0]!="#"])
+
+    lines["finish_cmd"] = "curl -o /dev/null http://%s:%d/finished?%%F" % (
+        port.connect_address(), port.cass_http_port())
+    lines["bind_port"] = "%d" % (port.ut_torrent_port(),)
+    lines["ut_webui_port"] = "%d" % (port.ut_http_port(),)
+    lines["bind_ip"] = "%s" % (port.bind_address(),)
+
+    lines["dir_active"] = os.path.join(basedir,
+        lines.get("dir_active","."))
+    lines["dir_torrent_files"] = os.path.join(basedir,
+        lines.get("dir_torrent_files","."))
+    try:
+        os.mkdir(lines["dir_active"])
+    except OSError:
+        pass
+
+    try:
+        os.mkdir(lines["dir_torrent_files"])
+    except OSError:
+        pass
+
     with open(os.path.join(basedir,"utconfig.txt"), "w") as writeFile:
-        writeFile.writelines(lines)
-        writeFile.write("""
-finish_cmd: "curl -o /dev/null http://%s:%d/finished?%%F"
-bind_port: %d
-ut_webui_port: %d
-bind_ip: "%s"
-""" % (port.connect_address(), port.cass_http_port(),
-       port.ut_torrent_port(), port.ut_http_port(), port.bind_address()))
+        writeFile.writelines("%s: %s\n"%(k,v) for (k,v) in lines.items())
 
 # http://www.onemanclapping.org/2010/03/running-multiple-cassandra-nodes-on.html
 def setupCassandra(basedir, port, allNodes, isCli=False):
@@ -140,14 +154,14 @@ set -x
 if [ -e utpid.txt ]; then
     UTPID=$(cat utpid.txt)
     kill "$UTPID"
-    while $(ps -A | grep -q "$UTPID "); do
+    while $(ps -A | grep -q "^$UTPID "); do
         sleep 0.1
     done
 fi
 if [ -e casspid.txt ]; then
     CASSPID=$(cat casspid.txt)
     kill "$CASSPID"
-    while $(ps -A | grep -q "$CASSPID "); do
+    while $(ps -A | grep -q "^$CASSPID "); do
         sleep 0.1
     done
 fi
@@ -198,7 +212,7 @@ exit $retval
 basedir="%s"
 if [ -e $basedir/casspid.txt ]; then
     CASSPID=$(cat $basedir/casspid.txt)
-    if ps -A | grep -q "$CASSPID "; then
+    if ps -A | grep -q "^$CASSPID "; then
         echo "Already running $CASSPID"
         exit 0
     fi

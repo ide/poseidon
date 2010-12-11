@@ -1324,8 +1324,7 @@ public class Cassandra {
 				return (col.value.length > MIN_CREATE_FILE_SIZE);
 			}
 			
-			//A MEGABYTE
-			private static int MIN_CREATE_FILE_SIZE = 1024*1024;
+			private static int MIN_CREATE_FILE_SIZE = 0; //1024*1024;
 			
 			private final edu.berkeley.poseidon.torrent.Torrentizer torrentizer = new Torrentizer();
 			

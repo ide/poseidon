@@ -2,8 +2,6 @@ token_auth_enable: 0
 dir_active: downloads
 # Leave dir_completed unspecified - we will use dir_active.
 dir_torrent_files: torrents
-dir_autoload: autoload
-dir_autoload_delete: 1
 upnp: 0
 natpmp: 0
 lsd: 0
