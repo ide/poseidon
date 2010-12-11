@@ -28,6 +28,7 @@ import org.json.simple.JSONObject;
 import org.json.simple.JSONValue;
 import org.json.simple.parser.ParseException;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.LinkedListMultimap;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Multimap;
@@ -249,7 +250,9 @@ public class UTorrentClient {
 
         // Create a new Torrent from the file. This takes time!
         Torrent torrent = new Torrent.PieceHasher()
-            .addAnnounceUri(URI.create("udp://tracker.publicbt.com:80/announce"))
+            .addAnnounceUriGroup(ImmutableList.of(
+                URI.create("http://tracker.publicbt.com:80/announce"),
+                URI.create("udp://tracker.publicbt.com:80/announce")))
             .addAnnounceUri(URI.create("udp://tracker.openbittorrent.com:80/announce"))
             .addFile(file)
             .build();
