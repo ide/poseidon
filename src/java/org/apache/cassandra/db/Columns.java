@@ -24,7 +24,7 @@ public class Columns {
         return sc;
     }
 
-    private static IColumn fromThrift(
+    public static IColumn fromThrift(
             org.apache.cassandra.thrift.Column column) {
         return new Column(column.name, column.value, column.timestamp);
     }

@@ -25,6 +25,7 @@ import edu.berkeley.poseidon.torrent.Torrent;
 import edu.berkeley.poseidon.torrent.TorrentDecoder;
 import edu.berkeley.poseidon.torrent.TorrentException;
 import edu.berkeley.poseidon.torrent.TorrentListener;
+import edu.berkeley.poseidon.torrent.Torrentizer;
 import edu.berkeley.poseidon.torrent.UTorrentClient;
 
 
@@ -84,7 +85,7 @@ public class RowMutationTorrentVerbHandler implements IVerbHandler {
             TorrentDecoder decoder = new TorrentDecoder(new Bdecoder());
             for (ColumnFamily cf : rm.getColumnFamilies()) {
                 for (IColumn cm : cf.getColumnsMap().values()) {
-                    if (Column.isTorrent(cm)) {
+                    if (Torrentizer.isTorrentWithData(cm)) {
                         try {
                             byte[] torrentContents = cm.value();
                             torrentFilesToProcess.add(decoder.decode(torrentContents));

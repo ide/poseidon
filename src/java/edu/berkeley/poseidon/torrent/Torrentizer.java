@@ -3,6 +3,8 @@ package edu.berkeley.poseidon.torrent;
 import java.io.File;
 import java.util.concurrent.Semaphore;
 
+import org.apache.cassandra.db.Columns;
+import org.apache.cassandra.db.IColumn;
 import org.apache.cassandra.thrift.Column;
 
 
@@ -18,15 +20,25 @@ public class Torrentizer {
 	}
 	
 	public static boolean isTorrent(Column col) {
-		try {
-			//FIXME: to check col.name and have col.name define the type of col?
-			decoder.decode(col.value);
-			return true;
-		} catch (TorrentException e) {
-			return false;
-		}
+	    return isTorrentColumn(Columns.fromThrift(col));
 	}
 	
+    public static boolean columnNameIsTorrent(byte[] name) {
+        return name.length >= 3 && name[0] == '_' && name[1] == '_' && name[2] == 'T';
+    }
+
+    public static boolean isTorrentColumn(IColumn c) {
+        return columnNameIsTorrent(c.name());
+    }
+
+    public static boolean isTorrentWithData(IColumn c) {
+        return isTorrentColumn(c) && !c.isMarkedForDelete();
+    }
+
+    public static boolean isDeletedTorrent(IColumn c) {
+        return isTorrentColumn(c) && c.isMarkedForDelete();
+    }
+
 	/** True iff col.value is the pathName to a file in torrentDirectory. */
 	public static boolean isPathName(Column col) {
 		//FIXME: to check col.name implies input col.value is always a filename
