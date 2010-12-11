@@ -21,6 +21,7 @@ if __name__ == '__main__':
     try:
         torrent_name, torrent_file, serverport = sys.argv[1:4]
         notify_poseidon(torrent_name, torrent_file, serverport)
+        print >>fp, "Finished"
     except:
-        print >>fp, sys.exc_info
+        print >>fp, sys.exc_info()
     fp.close()
