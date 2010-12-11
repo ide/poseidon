@@ -1250,6 +1250,7 @@ public class Cassandra {
 			}
 			
 			public String extractFilePathName(String basePathName, File file) throws IOException {
+				String delimiter = ".";
 				byte[] sha1;
 				try {
 					sha1 = com.google.common.io.Files.getDigest(file, java.security.MessageDigest.getInstance("SHA-1"));
@@ -1262,7 +1263,7 @@ public class Cassandra {
 		        for (byte b : sha1)
 		            formatter.format("%02x", b);
 		        
-				return basePathName + formatter.toString();
+				return basePathName + delimiter + formatter.toString();
 			}
 
 			public void torrentize(batch_insert_args writeVal) {
