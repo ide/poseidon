@@ -30,6 +30,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.util.List;
 import java.util.ArrayList;
@@ -665,18 +666,18 @@ public class Cassandra {
 
 		public void send_insert(String keyspace, String key, ColumnPath column_path, byte[] value, long timestamp, ConsistencyLevel consistency_level) throws TException
 		{
-//			oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
-//			insert_args args = new insert_args();
-//			args.keyspace = keyspace;
-//			args.key = key;
-//			args.column_path = column_path;
-//			args.value = value;
-//			args.timestamp = timestamp;
-//			args.consistency_level = consistency_level;
-//			args.write(oprot_);
-//			oprot_.writeMessageEnd();
-//			oprot_.getTransport().flush();
-			
+			//			oprot_.writeMessageBegin(new TMessage("insert", TMessageType.CALL, seqid_));
+			//			insert_args args = new insert_args();
+			//			args.keyspace = keyspace;
+			//			args.key = key;
+			//			args.column_path = column_path;
+			//			args.value = value;
+			//			args.timestamp = timestamp;
+			//			args.consistency_level = consistency_level;
+			//			args.write(oprot_);
+			//			oprot_.writeMessageEnd();
+			//			oprot_.getTransport().flush();
+
 			Column col = new Column(column_path.column, value, timestamp);
 			ColumnOrSuperColumn c = new ColumnOrSuperColumn();
 			c.setColumn(col);
@@ -689,26 +690,26 @@ public class Cassandra {
 
 		public void recv_insert() throws InvalidRequestException, UnavailableException, TimedOutException, TException
 		{
-//			TMessage msg = iprot_.readMessageBegin();
-//			if (msg.type == TMessageType.EXCEPTION) {
-//				TApplicationException x = TApplicationException.read(iprot_);
-//				iprot_.readMessageEnd();
-//				throw x;
-//			}
-//			insert_result result = new insert_result();
-//			result.read(iprot_);
-//			iprot_.readMessageEnd();
-//			if (result.ire != null) {
-//				throw result.ire;
-//			}
-//			if (result.ue != null) {
-//				throw result.ue;
-//			}
-//			if (result.te != null) {
-//				throw result.te;
-//			}
-//			return;
-			
+			//			TMessage msg = iprot_.readMessageBegin();
+			//			if (msg.type == TMessageType.EXCEPTION) {
+			//				TApplicationException x = TApplicationException.read(iprot_);
+			//				iprot_.readMessageEnd();
+			//				throw x;
+			//			}
+			//			insert_result result = new insert_result();
+			//			result.read(iprot_);
+			//			iprot_.readMessageEnd();
+			//			if (result.ire != null) {
+			//				throw result.ire;
+			//			}
+			//			if (result.ue != null) {
+			//				throw result.ue;
+			//			}
+			//			if (result.te != null) {
+			//				throw result.te;
+			//			}
+			//			return;
+
 			recv_batch_insert();
 		}
 
@@ -1143,7 +1144,7 @@ public class Cassandra {
 
 
 		public static class ClientTorrentizer {
-			
+
 			public void deTorrentize(ColumnOrSuperColumn readVal) {
 				Counter counter = new Counter();
 				deTorrentize(counter, readVal);
@@ -1186,12 +1187,12 @@ public class Cassandra {
 					(new Thread (new TorrentFetchFile(counter.numCompleted, readVal), "TorrentFetchFile")).start();
 				}
 			}
-			
+
 			private class TorrentFetchFile implements Runnable{
-				
+
 				private final Semaphore numCompleted;
 				private final Column readVal;
-				
+
 				public TorrentFetchFile (Semaphore numCompleted, Column readVal) {
 					this.numCompleted = numCompleted;
 					this.readVal = readVal;
@@ -1202,21 +1203,21 @@ public class Cassandra {
 					readVal.value = file.getAbsolutePath().getBytes();
 					numCompleted.release();
 				}
-				
+
 			}
 
 			private  void deTorrentize(Counter counter, SuperColumn readVal) {
 				for (Column col : readVal.columns)
 					deTorrentize(counter, col);
 			}
-			
+
 			private  void deTorrentize(Counter counter, ColumnOrSuperColumn readVal) {
 				if (readVal.isSetSuper_column())
 					deTorrentize(counter, readVal.super_column);
 				else
 					deTorrentize(counter, readVal.column);
 			}
-			
+
 			private  void deTorrentize(Counter counter, java.util.Iterator<ColumnOrSuperColumn> readVal) {
 				while (readVal.hasNext()) 
 					deTorrentize(counter, readVal.next());
@@ -1231,20 +1232,24 @@ public class Cassandra {
 				for (KeySlice kSlice : readVal)
 					deTorrentize(counter, kSlice.getColumnsIterator());
 			}
-			
+
 			public String extractFilePathName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
 				String delimiter = ".";
-				return torrentizer.torrentDirectoryPathName() + File.separator + 
-				key + delimiter + 
-				keyspace + delimiter + 
-				columnFamily + delimiter + 
-				((superColumnName == null) ? "" : superColumnName + delimiter) + 
-				columnName;
+				try {
+					return torrentizer.torrentDirectoryPathName() + File.separator + 
+					key + delimiter + 
+					keyspace + delimiter + 
+					columnFamily + delimiter + 
+					((superColumnName == null) ? "" : new String(superColumnName, "UTF-8") + delimiter) + 
+					new String(columnName, "UTF-8");
+				} catch (UnsupportedEncodingException e) {
+					throw new RuntimeException("No UTF-8");
+				}
 			}
 
 			public void torrentize(batch_insert_args writeVal) {
 				Counter counter = new Counter();
-				
+
 				for (Map.Entry<String, List<ColumnOrSuperColumn>> cf : writeVal.cfmap.entrySet())
 					for (ColumnOrSuperColumn c : cf.getValue())
 						if (c.isSetSuper_column())
@@ -1254,10 +1259,10 @@ public class Cassandra {
 						else
 							torrentize(counter, c.column, extractFilePathName
 									(writeVal.key, writeVal.keyspace, cf.getKey(), null, c.column.name));
-				
+
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
-			
+
 			private void torrentize(Counter counter, Column col, String pathName) {
 				if (Torrentizer.isPathName(col)) {
 					counter.numRequests++;
@@ -1269,12 +1274,12 @@ public class Cassandra {
 							"TorrentCreateAndSeedFile " + pathName)).start();
 				}
 			}
-			
+
 			private class TorrentSeedFile implements Runnable {
-				
+
 				private final Semaphore numCompleted;
 				private final Column pathName;
-				
+
 				public TorrentSeedFile (Semaphore numCompleted, Column pathName) {
 					this.numCompleted = numCompleted;
 					this.pathName = pathName;
@@ -1285,15 +1290,15 @@ public class Cassandra {
 					torrentizer.seed(file, pathName);
 					numCompleted.release();
 				}
-				
+
 			}
-			
+
 			private  class TorrentCreateAndSeedFile implements Runnable {
-				
+
 				private final Semaphore numCompleted;
 				private final Column writeVal;
 				private final String pathName;
-				
+
 				public TorrentCreateAndSeedFile (Semaphore numCompleted, Column writeVal, String pathName) {
 					this.numCompleted = numCompleted;
 					this.writeVal = writeVal;
@@ -1313,33 +1318,33 @@ public class Cassandra {
 						e.printStackTrace();
 						throw new RuntimeException("TorrentSeedFile couldn't write to file");
 					}
-					
+
 					torrentizer.seed(file, writeVal);
 					numCompleted.release();
 				}
-				
+
 			}
-			
+
 			private static boolean bigColumnVal(Column col) {
 				return (col.value.length > MIN_CREATE_FILE_SIZE);
 			}
-			
+
 			private static int MIN_CREATE_FILE_SIZE = 0; //1024*1024;
-			
+
 			private final edu.berkeley.poseidon.torrent.Torrentizer torrentizer = new Torrentizer();
-			
+
 			public static class Counter {
 				public Semaphore numCompleted;
 				public int numRequests;
-				
+
 				public Counter() {
 					numCompleted = new Semaphore(Integer.MAX_VALUE, false);
 					numCompleted.acquireUninterruptibly(Integer.MAX_VALUE);
 					numRequests = 0;
 				}
 			}
-			
-			
+
+
 
 		}
 
@@ -2427,12 +2432,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // AUTH_REQUEST
 					if (field.type == TType.STRUCT) {
 						this.auth_request = new AuthenticationRequest();
@@ -2800,21 +2805,21 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // AUTHNX
-				if (field.type == TType.STRUCT) {
-					this.authnx = new AuthenticationException();
-					this.authnx.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.authnx = new AuthenticationException();
+						this.authnx.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // AUTHZX
-				if (field.type == TType.STRUCT) {
-					this.authzx = new AuthorizationException();
-					this.authzx.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.authzx = new AuthorizationException();
+						this.authzx.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -3314,27 +3319,27 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // KEY
-				if (field.type == TType.STRING) {
-					this.key = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.key = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // COLUMN_PATH
-				if (field.type == TType.STRUCT) {
-					this.column_path = new ColumnPath();
-					this.column_path.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.column_path = new ColumnPath();
+						this.column_path.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 4: // CONSISTENCY_LEVEL
 					if (field.type == TType.I32) {
 						this.consistency_level = ConsistencyLevel.findByValue(iprot.readI32());
@@ -3928,21 +3933,21 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.STRUCT) {
-					this.success = new ColumnOrSuperColumn();
-					this.success.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.success = new ColumnOrSuperColumn();
+						this.success.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 1: // IRE
-				if (field.type == TType.STRUCT) {
-					this.ire = new InvalidRequestException();
-					this.ire.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ire = new InvalidRequestException();
+						this.ire.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // NFE
 					if (field.type == TType.STRUCT) {
 						this.nfe = new NotFoundException();
@@ -4567,27 +4572,27 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // KEY
-				if (field.type == TType.STRING) {
-					this.key = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.key = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // COLUMN_PARENT
-				if (field.type == TType.STRUCT) {
-					this.column_parent = new ColumnParent();
-					this.column_parent.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.column_parent = new ColumnParent();
+						this.column_parent.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 4: // PREDICATE
 					if (field.type == TType.STRUCT) {
 						this.predicate = new SlicePredicate();
@@ -5160,23 +5165,23 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.LIST) {
-					{
-						TList _list21 = iprot.readListBegin();
-						this.success = new ArrayList<ColumnOrSuperColumn>(_list21.size);
-						for (int _i22 = 0; _i22 < _list21.size; ++_i22)
+					if (field.type == TType.LIST) {
 						{
-							ColumnOrSuperColumn _elem23;
-							_elem23 = new ColumnOrSuperColumn();
-							_elem23.read(iprot);
-							this.success.add(_elem23);
+							TList _list21 = iprot.readListBegin();
+							this.success = new ArrayList<ColumnOrSuperColumn>(_list21.size);
+							for (int _i22 = 0; _i22 < _list21.size; ++_i22)
+							{
+								ColumnOrSuperColumn _elem23;
+								_elem23 = new ColumnOrSuperColumn();
+								_elem23.read(iprot);
+								this.success.add(_elem23);
+							}
+							iprot.readListEnd();
 						}
-						iprot.readListEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				case 1: // IRE
 					if (field.type == TType.STRUCT) {
 						this.ire = new InvalidRequestException();
@@ -5751,29 +5756,29 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
-				case 2: // KEYS
-				if (field.type == TType.LIST) {
-					{
-						TList _list25 = iprot.readListBegin();
-						this.keys = new ArrayList<String>(_list25.size);
-						for (int _i26 = 0; _i26 < _list25.size; ++_i26)
-						{
-							String _elem27;
-							_elem27 = iprot.readString();
-							this.keys.add(_elem27);
-						}
-						iprot.readListEnd();
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
+				case 2: // KEYS
+					if (field.type == TType.LIST) {
+						{
+							TList _list25 = iprot.readListBegin();
+							this.keys = new ArrayList<String>(_list25.size);
+							for (int _i26 = 0; _i26 < _list25.size; ++_i26)
+							{
+								String _elem27;
+								_elem27 = iprot.readString();
+								this.keys.add(_elem27);
+							}
+							iprot.readListEnd();
+						}
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // COLUMN_PATH
 					if (field.type == TType.STRUCT) {
 						this.column_path = new ColumnPath();
@@ -6295,25 +6300,25 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.MAP) {
-					{
-						TMap _map29 = iprot.readMapBegin();
-						this.success = new HashMap<String,ColumnOrSuperColumn>(2*_map29.size);
-						for (int _i30 = 0; _i30 < _map29.size; ++_i30)
+					if (field.type == TType.MAP) {
 						{
-							String _key31;
-							ColumnOrSuperColumn _val32;
-							_key31 = iprot.readString();
-							_val32 = new ColumnOrSuperColumn();
-							_val32.read(iprot);
-							this.success.put(_key31, _val32);
+							TMap _map29 = iprot.readMapBegin();
+							this.success = new HashMap<String,ColumnOrSuperColumn>(2*_map29.size);
+							for (int _i30 = 0; _i30 < _map29.size; ++_i30)
+							{
+								String _key31;
+								ColumnOrSuperColumn _val32;
+								_key31 = iprot.readString();
+								_val32 = new ColumnOrSuperColumn();
+								_val32.read(iprot);
+								this.success.put(_key31, _val32);
+							}
+							iprot.readMapEnd();
 						}
-						iprot.readMapEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				case 1: // IRE
 					if (field.type == TType.STRUCT) {
 						this.ire = new InvalidRequestException();
@@ -6954,29 +6959,29 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
-				case 2: // KEYS
-				if (field.type == TType.LIST) {
-					{
-						TList _list34 = iprot.readListBegin();
-						this.keys = new ArrayList<String>(_list34.size);
-						for (int _i35 = 0; _i35 < _list34.size; ++_i35)
-						{
-							String _elem36;
-							_elem36 = iprot.readString();
-							this.keys.add(_elem36);
-						}
-						iprot.readListEnd();
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
+				case 2: // KEYS
+					if (field.type == TType.LIST) {
+						{
+							TList _list34 = iprot.readListBegin();
+							this.keys = new ArrayList<String>(_list34.size);
+							for (int _i35 = 0; _i35 < _list34.size; ++_i35)
+							{
+								String _elem36;
+								_elem36 = iprot.readString();
+								this.keys.add(_elem36);
+							}
+							iprot.readListEnd();
+						}
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // COLUMN_PARENT
 					if (field.type == TType.STRUCT) {
 						this.column_parent = new ColumnParent();
@@ -7526,35 +7531,35 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.MAP) {
-					{
-						TMap _map38 = iprot.readMapBegin();
-						this.success = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map38.size);
-						for (int _i39 = 0; _i39 < _map38.size; ++_i39)
+					if (field.type == TType.MAP) {
 						{
-							String _key40;
-							List<ColumnOrSuperColumn> _val41;
-							_key40 = iprot.readString();
+							TMap _map38 = iprot.readMapBegin();
+							this.success = new HashMap<String,List<ColumnOrSuperColumn>>(2*_map38.size);
+							for (int _i39 = 0; _i39 < _map38.size; ++_i39)
 							{
-								TList _list42 = iprot.readListBegin();
-								_val41 = new ArrayList<ColumnOrSuperColumn>(_list42.size);
-								for (int _i43 = 0; _i43 < _list42.size; ++_i43)
+								String _key40;
+								List<ColumnOrSuperColumn> _val41;
+								_key40 = iprot.readString();
 								{
-									ColumnOrSuperColumn _elem44;
-									_elem44 = new ColumnOrSuperColumn();
-									_elem44.read(iprot);
-									_val41.add(_elem44);
+									TList _list42 = iprot.readListBegin();
+									_val41 = new ArrayList<ColumnOrSuperColumn>(_list42.size);
+									for (int _i43 = 0; _i43 < _list42.size; ++_i43)
+									{
+										ColumnOrSuperColumn _elem44;
+										_elem44 = new ColumnOrSuperColumn();
+										_elem44.read(iprot);
+										_val41.add(_elem44);
+									}
+									iprot.readListEnd();
 								}
-								iprot.readListEnd();
+								this.success.put(_key40, _val41);
 							}
-							this.success.put(_key40, _val41);
+							iprot.readMapEnd();
 						}
-						iprot.readMapEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				case 1: // IRE
 					if (field.type == TType.STRUCT) {
 						this.ire = new InvalidRequestException();
@@ -8117,19 +8122,19 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // KEY
-				if (field.type == TType.STRING) {
-					this.key = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.key = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // COLUMN_PARENT
 					if (field.type == TType.STRUCT) {
 						this.column_parent = new ColumnParent();
@@ -8668,21 +8673,21 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.I32) {
-					this.success = iprot.readI32();
-					setSuccessIsSet(true);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.I32) {
+						this.success = iprot.readI32();
+						setSuccessIsSet(true);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 1: // IRE
-				if (field.type == TType.STRUCT) {
-					this.ire = new InvalidRequestException();
-					this.ire.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ire = new InvalidRequestException();
+						this.ire.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // UE
 					if (field.type == TType.STRUCT) {
 						this.ue = new UnavailableException();
@@ -9421,28 +9426,28 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // COLUMN_PARENT
-				if (field.type == TType.STRUCT) {
-					this.column_parent = new ColumnParent();
-					this.column_parent.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.column_parent = new ColumnParent();
+						this.column_parent.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // PREDICATE
-				if (field.type == TType.STRUCT) {
-					this.predicate = new SlicePredicate();
-					this.predicate.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.predicate = new SlicePredicate();
+						this.predicate.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 4: // START_KEY
 					if (field.type == TType.STRING) {
 						this.start_key = iprot.readString();
@@ -10056,23 +10061,23 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.LIST) {
-					{
-						TList _list47 = iprot.readListBegin();
-						this.success = new ArrayList<KeySlice>(_list47.size);
-						for (int _i48 = 0; _i48 < _list47.size; ++_i48)
+					if (field.type == TType.LIST) {
 						{
-							KeySlice _elem49;
-							_elem49 = new KeySlice();
-							_elem49.read(iprot);
-							this.success.add(_elem49);
+							TList _list47 = iprot.readListBegin();
+							this.success = new ArrayList<KeySlice>(_list47.size);
+							for (int _i48 = 0; _i48 < _list47.size; ++_i48)
+							{
+								KeySlice _elem49;
+								_elem49 = new KeySlice();
+								_elem49.read(iprot);
+								this.success.add(_elem49);
+							}
+							iprot.readListEnd();
 						}
-						iprot.readListEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				case 1: // IRE
 					if (field.type == TType.STRUCT) {
 						this.ire = new InvalidRequestException();
@@ -10692,28 +10697,28 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // COLUMN_PARENT
-				if (field.type == TType.STRUCT) {
-					this.column_parent = new ColumnParent();
-					this.column_parent.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.column_parent = new ColumnParent();
+						this.column_parent.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // PREDICATE
-				if (field.type == TType.STRUCT) {
-					this.predicate = new SlicePredicate();
-					this.predicate.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.predicate = new SlicePredicate();
+						this.predicate.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 4: // RANGE
 					if (field.type == TType.STRUCT) {
 						this.range = new KeyRange();
@@ -11286,23 +11291,23 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.LIST) {
-					{
-						TList _list51 = iprot.readListBegin();
-						this.success = new ArrayList<KeySlice>(_list51.size);
-						for (int _i52 = 0; _i52 < _list51.size; ++_i52)
+					if (field.type == TType.LIST) {
 						{
-							KeySlice _elem53;
-							_elem53 = new KeySlice();
-							_elem53.read(iprot);
-							this.success.add(_elem53);
+							TList _list51 = iprot.readListBegin();
+							this.success = new ArrayList<KeySlice>(_list51.size);
+							for (int _i52 = 0; _i52 < _list51.size; ++_i52)
+							{
+								KeySlice _elem53;
+								_elem53 = new KeySlice();
+								_elem53.read(iprot);
+								this.success.add(_elem53);
+							}
+							iprot.readListEnd();
 						}
-						iprot.readListEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				case 1: // IRE
 					if (field.type == TType.STRUCT) {
 						this.ire = new InvalidRequestException();
@@ -11990,27 +11995,27 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // KEY
-				if (field.type == TType.STRING) {
-					this.key = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.key = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // COLUMN_PATH
-				if (field.type == TType.STRUCT) {
-					this.column_path = new ColumnPath();
-					this.column_path.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.column_path = new ColumnPath();
+						this.column_path.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 4: // VALUE
 					if (field.type == TType.STRING) {
 						this.value = iprot.readBinary();
@@ -12521,21 +12526,21 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // IRE
-				if (field.type == TType.STRUCT) {
-					this.ire = new InvalidRequestException();
-					this.ire.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ire = new InvalidRequestException();
+						this.ire.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // UE
-				if (field.type == TType.STRUCT) {
-					this.ue = new UnavailableException();
-					this.ue.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ue = new UnavailableException();
+						this.ue.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // TE
 					if (field.type == TType.STRUCT) {
 						this.te = new TimedOutException();
@@ -13037,19 +13042,19 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // KEY
-				if (field.type == TType.STRING) {
-					this.key = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.key = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // CFMAP
 					if (field.type == TType.MAP) {
 						{
@@ -13558,21 +13563,21 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // IRE
-				if (field.type == TType.STRUCT) {
-					this.ire = new InvalidRequestException();
-					this.ire.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ire = new InvalidRequestException();
+						this.ire.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // UE
-				if (field.type == TType.STRUCT) {
-					this.ue = new UnavailableException();
-					this.ue.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ue = new UnavailableException();
+						this.ue.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // TE
 					if (field.type == TType.STRUCT) {
 						this.te = new TimedOutException();
@@ -14159,27 +14164,27 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // KEY
-				if (field.type == TType.STRING) {
-					this.key = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.key = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // COLUMN_PATH
-				if (field.type == TType.STRUCT) {
-					this.column_path = new ColumnPath();
-					this.column_path.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.column_path = new ColumnPath();
+						this.column_path.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 4: // TIMESTAMP
 					if (field.type == TType.I64) {
 						this.timestamp = iprot.readI64();
@@ -14659,21 +14664,21 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // IRE
-				if (field.type == TType.STRUCT) {
-					this.ire = new InvalidRequestException();
-					this.ire.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ire = new InvalidRequestException();
+						this.ire.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // UE
-				if (field.type == TType.STRUCT) {
-					this.ue = new UnavailableException();
-					this.ue.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ue = new UnavailableException();
+						this.ue.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // TE
 					if (field.type == TType.STRUCT) {
 						this.te = new TimedOutException();
@@ -15132,12 +15137,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // MUTATION_MAP
 					if (field.type == TType.MAP) {
 						{
@@ -15650,21 +15655,21 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // IRE
-				if (field.type == TType.STRUCT) {
-					this.ire = new InvalidRequestException();
-					this.ire.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ire = new InvalidRequestException();
+						this.ire.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // UE
-				if (field.type == TType.STRUCT) {
-					this.ue = new UnavailableException();
-					this.ue.read(iprot);
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRUCT) {
+						this.ue = new UnavailableException();
+						this.ue.read(iprot);
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // TE
 					if (field.type == TType.STRUCT) {
 						this.te = new TimedOutException();
@@ -15971,12 +15976,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // PROPERTY
-				if (field.type == TType.STRING) {
-					this.property = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.property = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -16255,12 +16260,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.STRING) {
-					this.success = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.success = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -16535,12 +16540,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // PROPERTY
-				if (field.type == TType.STRING) {
-					this.property = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.property = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -16839,22 +16844,22 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.LIST) {
-					{
-						TList _list78 = iprot.readListBegin();
-						this.success = new ArrayList<String>(_list78.size);
-						for (int _i79 = 0; _i79 < _list78.size; ++_i79)
+					if (field.type == TType.LIST) {
 						{
-							String _elem80;
-							_elem80 = iprot.readString();
-							this.success.add(_elem80);
+							TList _list78 = iprot.readListBegin();
+							this.success = new ArrayList<String>(_list78.size);
+							for (int _i79 = 0; _i79 < _list78.size; ++_i79)
+							{
+								String _elem80;
+								_elem80 = iprot.readString();
+								this.success.add(_elem80);
+							}
+							iprot.readListEnd();
 						}
-						iprot.readListEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -17326,22 +17331,22 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.SET) {
-					{
-						TSet _set82 = iprot.readSetBegin();
-						this.success = new HashSet<String>(2*_set82.size);
-						for (int _i83 = 0; _i83 < _set82.size; ++_i83)
+					if (field.type == TType.SET) {
 						{
-							String _elem84;
-							_elem84 = iprot.readString();
-							this.success.add(_elem84);
+							TSet _set82 = iprot.readSetBegin();
+							this.success = new HashSet<String>(2*_set82.size);
+							for (int _i83 = 0; _i83 < _set82.size; ++_i83)
+							{
+								String _elem84;
+								_elem84 = iprot.readString();
+								this.success.add(_elem84);
+							}
+							iprot.readSetEnd();
 						}
-						iprot.readSetEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -17813,12 +17818,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.STRING) {
-					this.success = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.success = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -18283,12 +18288,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.STRING) {
-					this.success = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.success = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -18563,12 +18568,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -18932,23 +18937,23 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.LIST) {
-					{
-						TList _list86 = iprot.readListBegin();
-						this.success = new ArrayList<TokenRange>(_list86.size);
-						for (int _i87 = 0; _i87 < _list86.size; ++_i87)
+					if (field.type == TType.LIST) {
 						{
-							TokenRange _elem88;
-							_elem88 = new TokenRange();
-							_elem88.read(iprot);
-							this.success.add(_elem88);
+							TList _list86 = iprot.readListBegin();
+							this.success = new ArrayList<TokenRange>(_list86.size);
+							for (int _i87 = 0; _i87 < _list86.size; ++_i87)
+							{
+								TokenRange _elem88;
+								_elem88 = new TokenRange();
+								_elem88.read(iprot);
+								this.success.add(_elem88);
+							}
+							iprot.readListEnd();
 						}
-						iprot.readListEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				case 1: // IRE
 					if (field.type == TType.STRUCT) {
 						this.ire = new InvalidRequestException();
@@ -19440,12 +19445,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.STRING) {
-					this.success = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.success = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -19720,12 +19725,12 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // KEYSPACE
-				if (field.type == TType.STRING) {
-					this.keyspace = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.keyspace = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
@@ -20078,36 +20083,36 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.MAP) {
-					{
-						TMap _map90 = iprot.readMapBegin();
-						this.success = new HashMap<String,Map<String,String>>(2*_map90.size);
-						for (int _i91 = 0; _i91 < _map90.size; ++_i91)
+					if (field.type == TType.MAP) {
 						{
-							String _key92;
-							Map<String,String> _val93;
-							_key92 = iprot.readString();
+							TMap _map90 = iprot.readMapBegin();
+							this.success = new HashMap<String,Map<String,String>>(2*_map90.size);
+							for (int _i91 = 0; _i91 < _map90.size; ++_i91)
 							{
-								TMap _map94 = iprot.readMapBegin();
-								_val93 = new HashMap<String,String>(2*_map94.size);
-								for (int _i95 = 0; _i95 < _map94.size; ++_i95)
+								String _key92;
+								Map<String,String> _val93;
+								_key92 = iprot.readString();
 								{
-									String _key96;
-									String _val97;
-									_key96 = iprot.readString();
-									_val97 = iprot.readString();
-									_val93.put(_key96, _val97);
+									TMap _map94 = iprot.readMapBegin();
+									_val93 = new HashMap<String,String>(2*_map94.size);
+									for (int _i95 = 0; _i95 < _map94.size; ++_i95)
+									{
+										String _key96;
+										String _val97;
+										_key96 = iprot.readString();
+										_val97 = iprot.readString();
+										_val93.put(_key96, _val97);
+									}
+									iprot.readMapEnd();
 								}
-								iprot.readMapEnd();
+								this.success.put(_key92, _val93);
 							}
-							this.success.put(_key92, _val93);
+							iprot.readMapEnd();
 						}
-						iprot.readMapEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				case 1: // NFE
 					if (field.type == TType.STRUCT) {
 						this.nfe = new NotFoundException();
@@ -20550,19 +20555,19 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 1: // START_TOKEN
-				if (field.type == TType.STRING) {
-					this.start_token = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.start_token = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 2: // END_TOKEN
-				if (field.type == TType.STRING) {
-					this.end_token = iprot.readString();
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					if (field.type == TType.STRING) {
+						this.end_token = iprot.readString();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
+					}
+					break;
 				case 3: // KEYS_PER_SPLIT
 					if (field.type == TType.I32) {
 						this.keys_per_split = iprot.readI32();
@@ -20896,22 +20901,22 @@ public class Cassandra {
 				}
 				switch (field.id) {
 				case 0: // SUCCESS
-				if (field.type == TType.LIST) {
-					{
-						TList _list100 = iprot.readListBegin();
-						this.success = new ArrayList<String>(_list100.size);
-						for (int _i101 = 0; _i101 < _list100.size; ++_i101)
+					if (field.type == TType.LIST) {
 						{
-							String _elem102;
-							_elem102 = iprot.readString();
-							this.success.add(_elem102);
+							TList _list100 = iprot.readListBegin();
+							this.success = new ArrayList<String>(_list100.size);
+							for (int _i101 = 0; _i101 < _list100.size; ++_i101)
+							{
+								String _elem102;
+								_elem102 = iprot.readString();
+								this.success.add(_elem102);
+							}
+							iprot.readListEnd();
 						}
-						iprot.readListEnd();
+					} else { 
+						TProtocolUtil.skip(iprot, field.type);
 					}
-				} else { 
-					TProtocolUtil.skip(iprot, field.type);
-				}
-				break;
+					break;
 				default:
 					TProtocolUtil.skip(iprot, field.type);
 				}
