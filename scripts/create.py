@@ -197,16 +197,18 @@ cd %s
             nodeString=" ".join("'--host %s --port %d'"%(host.connect_address(), host.cass_thrift_port()) for host in allNodes)
             writeCfg.write("""
 retval=1
+UTPID=$(cat %s)
+trap 'kill $UTPID' SIGINT
 for node in %s; do
     if testnode $node; then
-        bin/cassandra-cli $node $* && retval=0
+        bin/cassandra-cli $node $* && retval=0 && break
     fi
 done
 
-kill $(cat %s)
+kill $UTPID
 
 exit $retval
-"""%(nodeString, os.path.join(basedir, "utpid.txt")))
+"""%(os.path.join(basedir, "utpid.txt"), nodeString))
         os.chmod(os.path.join(basedir, "cli.sh"), 0755)
     else:
         startCassandra = """

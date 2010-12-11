@@ -32,6 +32,8 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
+import java.security.NoSuchAlgorithmException;
+import java.util.Formatter;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -1233,18 +1235,34 @@ public class Cassandra {
 					deTorrentize(counter, kSlice.getColumnsIterator());
 			}
 
-			public String extractFilePathName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
+			public String extractFileBasePathName(String key, String keyspace, String columnFamily, byte[] superColumnName, byte[] columnName) {
 				String delimiter = ".";
 				try {
 					return torrentizer.torrentDirectoryPathName() + File.separator + 
-					key + delimiter + 
 					keyspace + delimiter + 
 					columnFamily + delimiter + 
+					key + delimiter + 
 					((superColumnName == null) ? "" : new String(superColumnName, "UTF-8") + delimiter) + 
 					new String(columnName, "UTF-8");
 				} catch (UnsupportedEncodingException e) {
 					throw new RuntimeException("No UTF-8");
 				}
+			}
+			
+			public String extractFilePathName(String basePathName, File file) throws IOException {
+				byte[] sha1;
+				try {
+					sha1 = com.google.common.io.Files.getDigest(file, java.security.MessageDigest.getInstance("SHA-1"));
+				} catch (NoSuchAlgorithmException e) {
+					e.printStackTrace();
+					throw new RuntimeException("Couldn't use SHA-1");
+				}
+				
+				Formatter formatter = new Formatter();
+		        for (byte b : sha1)
+		            formatter.format("%02x", b);
+		        
+				return basePathName + formatter.toString();
 			}
 
 			public void torrentize(batch_insert_args writeVal) {
@@ -1254,40 +1272,51 @@ public class Cassandra {
 					for (ColumnOrSuperColumn c : cf.getValue())
 						if (c.isSetSuper_column())
 							for (Column col : c.super_column.columns)
-								torrentize(counter, col, extractFilePathName
+								torrentize(counter, col, extractFileBasePathName
 										(writeVal.key, writeVal.keyspace, cf.getKey(), c.super_column.name, col.name));
 						else
-							torrentize(counter, c.column, extractFilePathName
+							torrentize(counter, c.column, extractFileBasePathName
 									(writeVal.key, writeVal.keyspace, cf.getKey(), null, c.column.name));
 
 				counter.numCompleted.acquireUninterruptibly(counter.numRequests);
 			}
 
-			private void torrentize(Counter counter, Column col, String pathName) {
+			private void torrentize(Counter counter, Column col, String basePathName) {
 				if (Torrentizer.isPathName(col)) {
 					counter.numRequests++;
-					(new Thread (new TorrentSeedFile(counter.numCompleted, col), 
+					(new Thread (new TorrentSeedFile(counter.numCompleted, col, basePathName), 
 							"TorrentSeedFile " + new String(col.value))).start();
 				} else if (bigColumnVal(col)) {
 					counter.numRequests++;
-					(new Thread (new TorrentCreateAndSeedFile(counter.numCompleted, col, pathName), 
-							"TorrentCreateAndSeedFile " + pathName)).start();
+					(new Thread (new TorrentCreateAndSeedFile(counter.numCompleted, col, basePathName), 
+							"TorrentCreateAndSeedFile " + basePathName)).start();
 				}
 			}
 
 			private class TorrentSeedFile implements Runnable {
 
 				private final Semaphore numCompleted;
-				private final Column pathName;
+				private final Column fileName;
+				private final String basePathName;
 
-				public TorrentSeedFile (Semaphore numCompleted, Column pathName) {
+				public TorrentSeedFile (Semaphore numCompleted, Column fileName, String basePathName) {
 					this.numCompleted = numCompleted;
-					this.pathName = pathName;
+					this.fileName = fileName;
+					this.basePathName = basePathName;
 				}
 
 				public void run() {
-					File file = new File(new String(pathName.value));					
-					torrentizer.seed(file, pathName);
+					File file = new File(new String(fileName.value));	
+					File movedFile;
+					try {
+						movedFile = new File(extractFilePathName(basePathName, file));
+						boolean success = file.renameTo(movedFile);
+						assert(success);
+					} catch (IOException e) {
+						e.printStackTrace();
+						throw new RuntimeException("TorrentSeedFile couldn't move file");
+					}
+					torrentizer.seed(movedFile, fileName);
 					numCompleted.release();
 				}
 
@@ -1297,29 +1326,32 @@ public class Cassandra {
 
 				private final Semaphore numCompleted;
 				private final Column writeVal;
-				private final String pathName;
+				private final String basePathName;
 
-				public TorrentCreateAndSeedFile (Semaphore numCompleted, Column writeVal, String pathName) {
+				public TorrentCreateAndSeedFile (Semaphore numCompleted, Column writeVal, String basePathName) {
 					this.numCompleted = numCompleted;
 					this.writeVal = writeVal;
-					this.pathName = pathName;
+					this.basePathName = basePathName;
 				}
 
 				public void run() {
-					File file = new File(pathName);
+					File file = new File(basePathName);
+					File movedFile;
 					try {
 						FileOutputStream fos = new FileOutputStream(file);
 						fos.write(writeVal.value);
 						fos.close();
+						movedFile = new File(extractFilePathName(this.basePathName, file));
+						boolean success = file.renameTo(movedFile);
+						assert(success);
 					} catch (FileNotFoundException e) {
 						e.printStackTrace();
-						throw new RuntimeException("TorrentSeedFile couldn't find file");
+						throw new RuntimeException("TorrentCreateAndSeedFile couldn't find file");
 					} catch (IOException e) {
 						e.printStackTrace();
-						throw new RuntimeException("TorrentSeedFile couldn't write to file");
+						throw new RuntimeException("TorrentCreateAndSeedFile couldn't write/move file");
 					}
-
-					torrentizer.seed(file, writeVal);
+					torrentizer.seed(movedFile, writeVal);
 					numCompleted.release();
 				}
 
