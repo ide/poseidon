@@ -553,9 +553,9 @@ public class CliClient
 	}
 
 	private static ConsistencyLevel extractLvl(String lvl) {
-		if (lvl.equalsIgnoreCase("0")) {
+		if (lvl.equalsIgnoreCase("ZERO")) {
 			return ConsistencyLevel.ZERO;
-		} else if (lvl.equalsIgnoreCase("1")) {
+		} else if (lvl.equalsIgnoreCase("ONE")) {
 			return ConsistencyLevel.ONE;
 		} else if (lvl.equalsIgnoreCase("QUORUM")) {
 			return ConsistencyLevel.QUORUM;
