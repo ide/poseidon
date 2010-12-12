@@ -238,7 +238,7 @@
   <!-- Miscellaneous -->
 
   <!-- Time to wait for a reply from other nodes before failing the command -->
-  <RpcTimeoutInMillis>10000</RpcTimeoutInMillis>
+  <RpcTimeoutInMillis>1000000000</RpcTimeoutInMillis>
   <!-- phi value that must be reached before a host is marked as down.
        most users should never adjust this -->
   <!-- PhiConvictThreshold>8</PhiConvictThreshold -->
