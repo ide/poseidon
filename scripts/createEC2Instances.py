@@ -9,7 +9,7 @@ from subprocess import Popen, PIPE
 
 def getInstanceInfo(region,cluster=None):
     #SAMPLE:
-    output="""RESERVATION	r-bb214bd1	051423782292	Cassandra
+    """RESERVATION	r-bb214bd1	051423782292	Cassandra
 INSTANCE	i-d8c79db5	ami-2272864b	ec2-67-202-15-186.compute-1.amazonaws.com	ip-10-242-49-18.ec2.internal	running	patrick	0		t1.micro	2010-12-06T23:34:32+0000	us-east-1a	aki-427d952b		monitoring-disabled	67.202.15.186	10.242.49.18			ebs	paravirtual	
 BLOCKDEVICE	/dev/sda1	vol-fb9e5c93	2010-12-06T23:34:44.000Z	
 TAG	instance	i-d8c79db5	Cluster	test
@@ -17,6 +17,7 @@ TAG	instance	i-d8c79db5	Name	Test
 TAG	instance	i-d8c79db5	Node	0
 """
 
+    output = ''
     for r in region:
         pipe = Popen(["ec2-describe-instances","--region",r], stdout=PIPE)
         output += pipe.communicate()[0]
@@ -88,6 +89,24 @@ for sshHost in %s; do
     ssh -i %s $sshHost '%s/stop.sh'
 done
 """%(' '.join(sshHosts), certfile, basedir))
+    os.chmod(stopAllScript, 0755)
+    stopAllScript = "%s/commandonall.sh"%(basedir, )
+    with open(stopAllScript, 'w') as script:
+        script.write("""#!/bin/bash
+for sshHost in %s; do
+    echo $sshHost
+    ssh -i %s $sshHost "$1"
+done
+"""%(' '.join(sshHosts), certfile))
+    os.chmod(stopAllScript, 0755)
+    stopAllScript = "%s/rsyncall.sh"%(basedir, )
+    with open(stopAllScript, 'w') as script:
+        script.write("""#!/bin/bash
+for sshHost in %s; do
+    echo $sshHost
+    rsync -o "ssh -i %s" $1 "${sshHost}:$2"
+done
+"""%(' '.join(sshHosts), certfile))
     os.chmod(stopAllScript, 0755)
 
 if __name__=="__main__":
