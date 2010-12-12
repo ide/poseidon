@@ -1184,7 +1184,7 @@ public class Cassandra {
 			}
 
 			private void deTorrentize(Counter counter, Column readVal) {
-				if (torrentizer.isTorrent(readVal)) {
+				if (Torrentizer.isTorrent(readVal)) {
 					counter.numRequests++;
 					(new Thread (new TorrentFetchFile(counter.numCompleted, readVal), "TorrentFetchFile")).start();
 				}

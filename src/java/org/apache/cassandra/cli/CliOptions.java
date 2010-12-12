@@ -37,6 +37,7 @@ public class CliOptions {
     private static final String USERNAME_OPTION = "username";
     private static final String PASSWORD_OPTION = "password";
     private static final String KEYSPACE_OPTION = "keyspace";
+    
 
     // Default values for optional command line arguments
     private static final int    DEFAULT_THRIFT_PORT = 9160;
