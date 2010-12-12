@@ -254,8 +254,8 @@ public class UTorrentClient {
         // Create a new Torrent from the file. This takes time!
         Torrent torrent = new Torrent.PieceHasher()
             .addAnnounceUriGroup(ImmutableList.of(
-                URI.create("http://50.18.56.165:80/announce"),
-                URI.create("udp://50.18.56.165:80/announce")))
+                URI.create("http://50.18.56.165:80/announce")))
+                //URI.create("udp://50.18.56.165:80/announce")))
 //            .addAnnounceUriGroup(ImmutableList.of(
 //                URI.create("http://tracker.publicbt.com:80/announce"),
 //                URI.create("udp://tracker.publicbt.com:80/announce")))
