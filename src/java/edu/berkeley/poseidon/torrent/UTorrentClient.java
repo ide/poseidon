@@ -262,6 +262,7 @@ public class UTorrentClient {
 //            .addAnnounceUri(URI.create("udp://tracker.openbittorrent.com:80/announce"))
             .addFile(file)
             .build();
+        addTorrent(torrent);
 
         return torrent;
     }
