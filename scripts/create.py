@@ -61,7 +61,10 @@ def setupUTorrent(basedir, port):
         port.connect_address(), port.cass_http_port())
     lines["bind_port"] = "%d" % (port.ut_torrent_port(),)
     lines["ut_webui_port"] = "%d" % (port.ut_http_port(),)
-    lines["bind_ip"] = "%s" % (port.bind_address(),)
+
+    # Always bind to 0.0.0.0 even if localhost, so that the tracker can communicate.
+    lines["bind_ip"] = "0.0.0.0"
+    #lines["bind_ip"] = "%s" % (port.bind_address(),)
 
     lines["dir_active"] = os.path.join(basedir,
         lines.get("dir_active","."))
