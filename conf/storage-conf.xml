@@ -49,7 +49,7 @@
    ~ Otherwise, no data will be lost but you will incur a lot of unnecessary
    ~ I/O before your cluster starts up.)
   -->
-  <AutoBootstrap>false</AutoBootstrap>
+  <AutoBootstrap>true</AutoBootstrap>
 
   <!--
    ~ See http://wiki.apache.org/cassandra/HintedHandoff
