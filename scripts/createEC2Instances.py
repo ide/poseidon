@@ -43,7 +43,7 @@ TAG	instance	i-d8c79db5	Node	0
             key = info[3]
             value = info[4]
             instances[id]["tag"][key] = value
-    return dict((k,v) for (k,v) in instances.iteritems() if (not cluster or v["tag"]["Cluster"]==cluster) and v["state"]=="running")
+    return dict((k,v) for (k,v) in instances.iteritems() if (not cluster or v["tag"].get("Cluster","")==cluster) and v["state"]=="running")
 
 def createInstances(basedir, instInfo, certfile):
     try:
@@ -115,15 +115,11 @@ if __name__=="__main__":
     parser.add_option("-d", "--dir", dest="dir", help="Top-level directory for all nodes. *MUST* be relative path")
     parser.add_option("-c", "--clusterid", default=None, dest="clusterid", help="Cluster ID (default 0).")
     parser.add_option("-k", "--key", "--cert", dest="certfile", help="SSH Private Key (.pem)")
-    parser.add_option("-n", "--nocreate", dest="nocreate", action="store_true", help="Just get node list")
+    parser.add_option("-l", "--list", "--nocreate", dest="nocreate", action="store_true", help="Just get node list")
     (options, args) = parser.parse_args()
 
     if not options.regions:
         options.regions = 'eu-west-1,us-east-1,us-west-1,ap-southeast-1'
-    if not options.dir or not options.certfile:
-        print >>sys.stderr, "Must specify private key (-k) and directory (-d) and regions(-r)"
-        parser.print_help()
-        sys.exit(1)
 
     instanceInfo = getInstanceInfo(options.regions.split(','), options.clusterid)
     print "Instances:"
@@ -132,5 +128,10 @@ if __name__=="__main__":
         for k,v in dic.iteritems():
             print "    %s: %s"%(k,v)
     if not options.nocreate:
+        if not options.dir or not options.certfile:
+            print >>sys.stderr, "Must specify private key (-k) and directory (-d) and regions(-r)"
+            parser.print_help()
+            sys.exit(1)
+
         createInstances(options.dir, instanceInfo, options.certfile)
 
