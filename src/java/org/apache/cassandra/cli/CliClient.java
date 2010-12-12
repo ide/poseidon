@@ -130,6 +130,7 @@ public class CliClient
 		css_.out.println("show cluster name                                          Display cluster name.");
 		css_.out.println("show keyspaces                                           Show list of keyspaces.");
 		css_.out.println("show api version                                        Show server API version.");
+		css_.out.println("Get/set can specify consistency for last arg: get <ksp>.<cf>['<key>'] consistency");
 		css_.out.println("get <ksp>.<cf>['<key>']                                  Get a slice of columns.");
 		css_.out.println("get <ksp>.<cf>['<key>']['<super>']                   Get a slice of sub columns.");
 		css_.out.println("get <ksp>.<cf>['<key>']['<col0>,<col1>,..,<colN>']            Get column values.");
