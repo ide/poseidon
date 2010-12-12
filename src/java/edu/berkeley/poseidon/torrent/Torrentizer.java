@@ -40,10 +40,9 @@ public class Torrentizer {
         return isTorrentColumn(c) && c.isMarkedForDelete();
     }
 
-	/** True iff col.value is the pathName to a file in torrentDirectory. */
+	/** True iff col.value is the pathName to a file. */
 	public static boolean isPathName(Column col) {
-		//FIXME: to check col.name implies input col.value is always a filename
-		return false;
+		return col.name.length >= 5 && col.name[3] == '_' && col.name[4] == 'F';
 	}
 	
 	/** Requires isTorrent(torrent.value) */
@@ -92,7 +91,6 @@ public class Torrentizer {
 
 		@Override
 		public void downloadFailed(Torrent torrent, TorrentException error) {
-			//FIXME maybe throw NotFoundException?
 			error.printStackTrace();
 			this.file = NULLNAMEFILE;
 			semaphore.release();
