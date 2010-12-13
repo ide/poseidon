@@ -168,6 +168,8 @@ public class UTorrentClient {
         maxActiveResource.get(String.class);
         maxActiveResource = makeWebResource("action=setsetting&s=seed_ratio&v=2147483647");
         maxActiveResource.get(String.class);
+        maxActiveResource = makeWebResource("action=setsetting&s=max_active_downloads&v=2147483647");
+        maxActiveResource.get(String.class);
     }
 
     private void setUpHttpServer() {
