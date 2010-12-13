@@ -37,10 +37,10 @@ public class RowMutationTorrentVerbHandler implements IVerbHandler {
         private Set<Torrent> torrentFiles;
         private Message mutation;
 
-        public TorrentCompleted (RowMutation mutation, String messageId, Set<Torrent> torrentFiles) throws IOException {
+        public TorrentCompleted (Message originalMutation, Set<Torrent> torrentFiles) throws IOException {
             this.torrentFiles = torrentFiles;
-            this.mutation = mutation.makeRowMutationMessage();
-            this.mutation.setMessageId(messageId);
+            this.mutation = new Message(originalMutation.getFrom(), StageManager.MUTATION_STAGE, Verb.MUTATION, originalMutation.getMessageBody());
+            this.mutation.setMessageId(originalMutation.getMessageId());
         }
 
         public synchronized void fileDownloaded(Torrent torrent, File torrentFile) {
@@ -95,7 +95,7 @@ public class RowMutationTorrentVerbHandler implements IVerbHandler {
                     }
                 }
             }
-            TorrentCompleted status = new TorrentCompleted(rm, message.getMessageId(), torrentFilesToProcess);
+            TorrentCompleted status = new TorrentCompleted(message, torrentFilesToProcess);
             boolean waitingForTorrents = false;
             for (Torrent torrentFile : torrentFilesToProcess) {
                 try {
