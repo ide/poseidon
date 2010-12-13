@@ -27,6 +27,7 @@ package org.apache.cassandra.thrift;
 
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -51,6 +52,8 @@ import org.slf4j.LoggerFactory;
 import org.apache.thrift.*;
 import org.apache.thrift.meta_data.*;
 import org.apache.thrift.protocol.*;
+
+import com.google.common.io.Files;
 
 import edu.berkeley.poseidon.torrent.Torrentizer;
 
@@ -1143,8 +1146,6 @@ public class Cassandra {
 			throw new TApplicationException(TApplicationException.MISSING_RESULT, "describe_splits failed: unknown result");
 		}
 
-
-
 		public static class ClientTorrentizer {
 
 			public void deTorrentize(ColumnOrSuperColumn readVal) {
@@ -1292,6 +1293,14 @@ public class Cassandra {
 						(new Thread (new TorrentCreateAndSeedFile(counter.numCompleted, col, basePathName), 
 								"TorrentCreateAndSeedFile " + basePathName)).start();
 					}
+				} else {
+					//Though this logic isn't torrentizing, it's here to use the iterator
+					if (isFile(col.name)) {
+						counter.numRequests++;
+//						extractFileVal(col); //extract sync
+						(new Thread (new ExtractFile(counter.numCompleted, col), 
+								"ExtractFile " + new String(col.value))).start(); //extract async
+					}
 				}
 			}
 
@@ -1357,6 +1366,38 @@ public class Cassandra {
 					numCompleted.release();
 				}
 
+			}
+			
+			private class ExtractFile implements Runnable {
+
+				private final Semaphore numCompleted;
+				private final Column fileName;
+
+				public ExtractFile (Semaphore numCompleted, Column fileName) {
+					this.numCompleted = numCompleted;
+					this.fileName = fileName;
+				}
+
+				public void run() {
+					extractFileVal(fileName);
+					numCompleted.release();
+				}
+
+			}
+			
+			/** Requires isFile(col.name)*/
+			private static void extractFileVal(Column col) {
+				File file = new File(new String(col.value));
+				try {
+					col.value = Files.toByteArray(file);
+				} catch (IOException e) {
+					e.printStackTrace();
+					throw new RuntimeException("Could not read input file in column " + col.name);
+				}
+			}
+
+			private static boolean isFile(byte[] name) {
+				return name.length >= 2 && name[0] == '_' && name[1] == 'F';
 			}
 
 			private final edu.berkeley.poseidon.torrent.Torrentizer torrentizer = new Torrentizer();
