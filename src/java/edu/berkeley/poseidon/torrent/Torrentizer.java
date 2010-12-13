@@ -48,6 +48,7 @@ public class Torrentizer {
 	/** Requires isTorrent(torrent.value) */
 	public File fetchFile(Column torrent) {
 		try {
+			TorrentDecoder decoder = new TorrentDecoder(new Bdecoder());
 			Listener listener = new Listener();
 			uTorrentClient.download(decoder.decode(torrent.value), listener);
 			listener.semaphore.acquireUninterruptibly();
@@ -62,6 +63,7 @@ public class Torrentizer {
 	
 	public void seed(File file, Column torrent) {
 		try {
+			TorrentEncoder encoder = new TorrentEncoder(new Bencoder());
 			torrent.value = encoder.encode(uTorrentClient.seed(file));
 		} catch (TorrentException e) {
 			e.printStackTrace();
@@ -100,9 +102,6 @@ public class Torrentizer {
 	}
 	
 	private UTorrentClient uTorrentClient;
-	
-	private final static TorrentDecoder decoder = new TorrentDecoder(new Bdecoder());
-	private final static TorrentEncoder encoder = new TorrentEncoder(new Bencoder());
 	
 	private final static File NULLNAMEFILE = new File("null");
 }

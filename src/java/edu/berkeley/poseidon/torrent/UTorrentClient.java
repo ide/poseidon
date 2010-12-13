@@ -175,7 +175,7 @@ public class UTorrentClient {
         httpServer.start();
     }
 
-    public void destroy() {
+    public synchronized void destroy() {
         httpServer.stop(0);
     }
 
@@ -251,7 +251,7 @@ public class UTorrentClient {
      *         active download directory
      * @throws NullPointerException if the given file is null
      */
-    public Torrent seed(File file) throws TorrentException {
+    public synchronized Torrent seed(File file) throws TorrentException {
         checkNotNull(file);
         checkArgument(getActiveDirectory().equals(file.getParentFile()));
 
@@ -271,7 +271,7 @@ public class UTorrentClient {
         return torrent;
     }
 
-    public void download(Torrent torrent, TorrentListener listener)
+    public synchronized void download(Torrent torrent, TorrentListener listener)
             throws TorrentException {
         // Register the listener that is notified when a torrent completes.
         Callback callback = new Callback(torrent, listener);
@@ -297,7 +297,7 @@ public class UTorrentClient {
      * Removes the specified torrent (stops downloading/seeding) and returns
      * true if such a torrent was found and false if otherwise.
      */
-    public boolean remove(Torrent torrent) throws TorrentException {
+    public synchronized boolean remove(Torrent torrent) throws TorrentException {
         String response = makeWebResource("list=1").get(String.class);
         String name = torrent.getName();
         JSONObject json = toJsonObject(response);
