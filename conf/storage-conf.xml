@@ -157,7 +157,7 @@
       <ReplicaPlacementStrategy>org.apache.cassandra.locator.RackUnawareStrategy</ReplicaPlacementStrategy>
 
       <!-- Number of replicas of the data -->
-      <ReplicationFactor>6</ReplicationFactor>
+      <ReplicationFactor>3</ReplicationFactor>
 
       <!--
        ~ EndPointSnitch: Setting this to the class that implements
