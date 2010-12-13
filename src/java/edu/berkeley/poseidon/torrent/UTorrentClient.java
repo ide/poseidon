@@ -121,7 +121,6 @@ public class UTorrentClient {
         String completedDirectory = null;
         WebResource settingsResource = makeWebResource("action=getsettings");
         String response = settingsResource.get(String.class);
-        logger.debug(response);
         try {
             JSONObject json = toJsonObject(response);
             List<?> settings = (JSONArray) json.get("settings");
@@ -164,6 +163,11 @@ public class UTorrentClient {
         setUpHttpServer();
         logger.info("uTorrent Active directory is: " + this.activeDirectory);
         logger.info("uTorrent Completed directory is: " + this.completedDirectory);
+        
+        WebResource maxActiveResource = makeWebResource("action=setsetting&s=max_active_torrent&v=2147483647");
+        maxActiveResource.get(String.class);
+        maxActiveResource = makeWebResource("action=setsetting&s=seed_ratio&v=2147483647");
+        maxActiveResource.get(String.class);
     }
 
     private void setUpHttpServer() {
