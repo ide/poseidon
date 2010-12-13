@@ -104,7 +104,7 @@ done
         script.write("""#!/bin/bash
 for sshHost in %s; do
     echo $sshHost
-    rsync -o "ssh -i %s" $1 "${sshHost}:$2"
+    rsync -e "ssh -i %s" $1 "${sshHost}:$2"
 done
 """%(' '.join(sshHosts), certfile))
     os.chmod(stopAllScript, 0755)
