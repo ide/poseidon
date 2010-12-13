@@ -1202,9 +1202,17 @@ public class Cassandra {
 				}
 
 				public void run() {
-					File file = torrentizer.fetchFile(readVal);
-					readVal.value = file.getAbsolutePath().getBytes();
-					numCompleted.release();
+					boolean success = false;
+					try {
+						File file = torrentizer.fetchFile(readVal);
+						readVal.value = file.getAbsolutePath().getBytes();
+						success = true;
+					} finally {
+						if (!success) {
+							readVal.value = null;
+						}
+						numCompleted.release();
+					}
 				}
 
 			}

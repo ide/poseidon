@@ -17,6 +17,12 @@ import com.google.common.collect.Maps;
 
 public class Bdecoder {
 
+    public class BdecoderException extends RuntimeException {
+        public BdecoderException(String str, RuntimeException cause) {
+            super(str, cause);
+        }
+    }
+
     public enum Type {
         BYTE_STRING, INTEGER, LIST, DICTIONARY
     }
@@ -33,7 +39,33 @@ public class Bdecoder {
 
     public Pair<?, Type> decode(byte[] data) {
         offset = 0;
-        return decodeInternal(data);
+        try {
+            return decodeInternal(data);
+        } catch (RuntimeException e) {
+            int i = offset - 5;
+            StringBuilder toPrint = new StringBuilder();
+            if (i <= 0) {
+                i = 0;
+                toPrint.append(" ^");
+            }
+            for (; i < offset + 5; i++) {
+                if (i >= data.length) {
+                    toPrint.append(" $");
+                    break;
+                }
+                toPrint.append(" ");
+                toPrint.append(((int)(data[i])) & 0xff);
+            }
+/* // For debugging invalid torrent files.
+            try {
+                java.io.FileOutputStream fos = new java.io.FileOutputStream("/tmp/bdecoder_"+Math.random()+".torrent");
+                fos.write(data);
+                fos.close();
+            } catch (java.io.IOException ioex) {
+            }
+*/
+            throw new BdecoderException("Failed to decode at position "+offset+" out of "+data.length+":"+toPrint, e);
+        }
     }
 
     public String asString(byte[] data) {
