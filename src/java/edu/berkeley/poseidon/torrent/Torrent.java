@@ -242,7 +242,7 @@ public class Torrent {
      */
     public static class PieceHasher extends Builder {
 
-        public static final int DEFAULT_PIECE_LENGTH = 512 * 1024;
+        public static final int DEFAULT_PIECE_LENGTH = 1024;
 
         private final MessageDigest sha1;
 
