@@ -242,7 +242,7 @@ public class Torrent {
      */
     public static class PieceHasher extends Builder {
 
-        public static final int DEFAULT_PIECE_LENGTH = 1024;
+        public static final int DEFAULT_PIECE_LENGTH = 512 * 1024;
 
         private final MessageDigest sha1;
 
@@ -314,8 +314,10 @@ public class Torrent {
             int bytesRead;
             do {
                 bytesRead = readPiece(in, piece);
-                sha1.update(piece, 0, bytesRead);
-                hashes.write(sha1.digest());
+                if (bytesRead > 0) {
+                    sha1.update(piece, 0, bytesRead);
+                    hashes.write(sha1.digest());
+                }
             } while (bytesRead == pieceLength);
 
             in.close();
