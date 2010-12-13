@@ -204,7 +204,11 @@ UTPID=$(cat %s)
 trap 'kill $UTPID' SIGINT
 for node in %s; do
     if testnode $node; then
-        bin/cassandra-cli $node $* && retval=0 && break
+        echo -n 'start ';date
+        command time -p bin/cassandra-cli $node $* 2>&1
+        retval=$?
+        echo -n 'end ';date
+        break
     fi
 done
 
