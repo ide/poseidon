@@ -1200,17 +1200,16 @@ public class Cassandra {
 					this.numCompleted = numCompleted;
 					this.readVal = readVal;
 				}
+				
+				private void execute() {
+					File file = torrentizer.fetchFile(readVal);
+					readVal.value = file.getAbsolutePath().getBytes();
+				}
 
 				public void run() {
-					boolean success = false;
 					try {
-						File file = torrentizer.fetchFile(readVal);
-						readVal.value = file.getAbsolutePath().getBytes();
-						success = true;
+						execute();
 					} finally {
-						if (!success) {
-							readVal.value = null;
-						}
 						numCompleted.release();
 					}
 				}
@@ -1324,7 +1323,7 @@ public class Cassandra {
 					this.basePathName = basePathName;
 				}
 
-				public void run() {
+				public void execute() {
 					File file = new File(new String(fileName.value));	
 					File movedFile;
 					try {
@@ -1336,7 +1335,14 @@ public class Cassandra {
 						throw new RuntimeException("TorrentSeedFile couldn't move file");
 					}
 					torrentizer.seed(movedFile, fileName);
-					numCompleted.release();
+				}
+
+				public void run() {
+					try {
+						execute();
+					} finally {
+						numCompleted.release();
+					}
 				}
 
 			}
@@ -1352,8 +1358,8 @@ public class Cassandra {
 					this.writeVal = writeVal;
 					this.basePathName = basePathName;
 				}
-
-				public void run() {
+				
+				public void execute() {
 					File file = new File(basePathName);
 					File movedFile;
 					try {
@@ -1371,7 +1377,14 @@ public class Cassandra {
 						throw new RuntimeException("TorrentCreateAndSeedFile couldn't write/move file");
 					}
 					torrentizer.seed(movedFile, writeVal);
-					numCompleted.release();
+				}
+
+				public void run() {
+					try {
+						execute();
+					} finally {
+						numCompleted.release();
+					}
 				}
 
 			}
@@ -1387,8 +1400,11 @@ public class Cassandra {
 				}
 
 				public void run() {
-					extractFileVal(fileName);
-					numCompleted.release();
+					try {
+						extractFileVal(fileName);
+					} finally {
+						numCompleted.release();
+					}
 				}
 
 			}
