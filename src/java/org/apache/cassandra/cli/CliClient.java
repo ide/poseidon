@@ -33,6 +33,7 @@ import org.apache.cassandra.thrift.ColumnPath;
 import org.apache.cassandra.thrift.ConsistencyLevel;
 import org.apache.cassandra.thrift.InvalidRequestException;
 import org.apache.cassandra.thrift.NotFoundException;
+import org.apache.cassandra.thrift.SlicePredicate;
 import org.apache.cassandra.thrift.SliceRange;
 import org.apache.cassandra.thrift.SuperColumn;
 import org.apache.cassandra.thrift.TimedOutException;
@@ -319,126 +320,6 @@ public class CliClient
         return type;
     }
 
-    // Execute GET statement
-    private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, IllegalAccessException, InstantiationException, ClassNotFoundException
-    {
-        if (!CliMain.isConnected())
-            return;
-
-        // This will never happen unless the grammar is broken
-        assert (ast.getChildCount() == 1) : "serious parsing error (this is a bug).";
-
-        CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
-        if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
-            return;
-
-        String tableName = CliCompiler.getTableName(columnFamilySpec);
-        String key = CliCompiler.getKey(columnFamilySpec);
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
-        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec); 
-        
-        if (!(getCFMetaData(tableName).containsKey(columnFamily)))
-        {
-            css_.out.println("No such column family: " + columnFamily);
-            return;
-        }
-        
-        boolean isSuper = getCFMetaData(tableName).get(columnFamily).get("Type").equals("Super") ? true : false;
-        
-        byte[] superColumnName = null;
-        byte[] columnName = null;
-        
-        // table.cf['key'] -- row slice
-        if (columnSpecCnt == 0)
-        {
-            doSlice(tableName, key, columnFamily, superColumnName);
-            return;
-        }
-        
-        // table.cf['key']['column'] -- slice of a super, or get of a standard
-        if (columnSpecCnt == 1)
-        {
-            if (isSuper)
-            {
-                superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-                doSlice(tableName, key, columnFamily, superColumnName);
-                return;
-            }
-            else
-            {
-                columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-            }
-        }
-        // table.cf['key']['column']['column'] -- get of a sub-column
-        else if (columnSpecCnt == 2)
-        {
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
-        }
-        // The parser groks an arbitrary number of these so it is possible to get here.
-        else
-        {
-            css_.out.println("Invalid row, super column, or column specification.");
-            return;
-        }
-        
-        // Perform a get(), print out the results.
-        ColumnPath path = createColumnPath(columnFamily, superColumnName, columnName);
-        Column column = thriftClient_.get(tableName, key, path, ConsistencyLevel.ONE).column;
-        css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(tableName, columnFamily, column),
-                        new String(column.value, "UTF-8"), column.timestamp);
-    }
-
-    // Execute SET statement
-    private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
-    { 
-        if (!CliMain.isConnected())
-            return;
-
-        assert (ast.getChildCount() == 2) : "serious parsing error (this is a bug).";
-
-        CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
-        if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
-            return;
-
-        String tableName = CliCompiler.getTableName(columnFamilySpec);
-        String key = CliCompiler.getKey(columnFamilySpec);
-        String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
-        int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
-        String value = CliUtils.unescapeSQLString(ast.getChild(1).getText());
-
-        byte[] superColumnName = null;
-        byte[] columnName = null;
-
-        // table.cf['key']
-        if (columnSpecCnt == 0)
-        {
-            css_.err.println("No column name specified, (type 'help' or '?' for help on syntax).");
-            return;
-        }
-        // table.cf['key']['column'] = 'value'
-        else if (columnSpecCnt == 1)
-        {
-            // get the column name
-            columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-        }
-        // table.cf['key']['super_column']['column'] = 'value'
-        else
-        {
-            assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
-            
-            // get the super column and column names
-            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
-            columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
-        }
-        
-        // do the insert
-        thriftClient_.insert(tableName, key, createColumnPath(columnFamily, superColumnName, columnName),
-                             value.getBytes(), timestampMicros(), ConsistencyLevel.ONE);
-        
-        css_.out.println("Value inserted.");
-    }
-
     private void executeShowProperty(CommonTree ast, String propertyName) throws TException
     {
         if (!CliMain.isConnected())
@@ -521,4 +402,151 @@ public class CliClient
         css_.thriftPort = portNumber;
         CliMain.connect(css_.hostName, css_.thriftPort);
     }
+    
+    // Execute GET statement
+	private void executeGet(CommonTree ast) throws TException, NotFoundException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException, IllegalAccessException, InstantiationException, ClassNotFoundException
+	{
+	    if (!CliMain.isConnected())
+	        return;
+	
+	    // This will never happen unless the grammar is broken
+	    assert (ast.getChildCount() == 1) : "serious parsing error (this is a bug).";
+	
+	    CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
+	    if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
+	        return;
+	
+	    String tableName = CliCompiler.getTableName(columnFamilySpec);
+	    String key = CliCompiler.getKey(columnFamilySpec);
+	    String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+	    int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec); 
+	    
+	    if (!(getCFMetaData(tableName).containsKey(columnFamily)))
+	    {
+	        css_.out.println("No such column family: " + columnFamily);
+	        return;
+	    }
+	    
+	    boolean isSuper = getCFMetaData(tableName).get(columnFamily).get("Type").equals("Super") ? true : false;
+	    
+	    byte[] superColumnName = null;
+	    byte[] columnName = null;
+	    
+	    // table.cf['key'] -- row slice
+	    if (columnSpecCnt == 0)
+	    {
+	        doSlice(tableName, key, columnFamily, superColumnName);
+	        return;
+	    }
+	    
+	    // table.cf['key']['column'] -- slice of a super, or get of a standard
+	    if (columnSpecCnt == 1)
+	    {
+	        if (isSuper)
+	        {
+	            superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+	            doSlice(tableName, key, columnFamily, superColumnName);
+	            return;
+	        }
+	        else
+	        {
+	            columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+	        }
+	    }
+	    // table.cf['key']['column']['column'] -- get of a sub-column
+	    else if (columnSpecCnt == 2)
+	    {
+	        superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+	        columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
+	    }
+	    // The parser groks an arbitrary number of these so it is possible to get here.
+	    else
+	    {
+	        css_.out.println("Invalid row, super column, or column specification.");
+	        return;
+	    }
+	    
+	    // Perform a get(), print out the results.
+	    ColumnPath path = createColumnPath(columnFamily, superColumnName, columnName);
+	    Column column = thriftClient_.get(tableName, key, path, ConsistencyLevel.ONE).column;
+	    css_.out.printf("=> (column=%s, value=%s, timestamp=%d)\n", formatColumnName(tableName, columnFamily, column),
+	                    new String(column.value, "UTF-8"), column.timestamp);
+	}
+
+	// Execute SET statement
+	private void executeSet(CommonTree ast) throws TException, InvalidRequestException, UnavailableException, TimedOutException, UnsupportedEncodingException
+	{ 
+	    if (!CliMain.isConnected())
+	        return;
+	
+	    assert (ast.getChildCount() == 2) : "serious parsing error (this is a bug).";
+	
+	    CommonTree columnFamilySpec = (CommonTree)ast.getChild(0);
+	    if (!(columnFamilySpec.getType() == CliParser.NODE_COLUMN_ACCESS))
+	        return;
+	
+	    String tableName = CliCompiler.getTableName(columnFamilySpec);
+	    String key = CliCompiler.getKey(columnFamilySpec);
+	    String columnFamily = CliCompiler.getColumnFamily(columnFamilySpec);
+	    int columnSpecCnt = CliCompiler.numColumnSpecifiers(columnFamilySpec);
+	    String value = CliUtils.unescapeSQLString(ast.getChild(1).getText());
+	
+	    byte[] superColumnName = null;
+	    byte[] columnName = null;
+	
+	    // table.cf['key']
+	    if (columnSpecCnt == 0)
+	    {
+	        css_.err.println("No column name specified, (type 'help' or '?' for help on syntax).");
+	        return;
+	    }
+	    // table.cf['key']['column'] = 'value'
+	    else if (columnSpecCnt == 1)
+	    {
+	        // get the column name
+	        columnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+	    }
+	    // table.cf['key']['super_column']['column'] = 'value'
+	    else
+	    {
+	        assert (columnSpecCnt == 2) : "serious parsing error (this is a bug).";
+	        
+	        // get the super column and column names
+	        superColumnName = CliCompiler.getColumn(columnFamilySpec, 0).getBytes("UTF-8");
+	        columnName = CliCompiler.getColumn(columnFamilySpec, 1).getBytes("UTF-8");
+	    }
+	    
+	    // do the insert
+	    thriftClient_.insert(tableName, key, createColumnPath(columnFamily, superColumnName, columnName),
+	                         value.getBytes(), timestampMicros(), ConsistencyLevel.ONE);
+	    
+	    css_.out.println("Value inserted.");
+	}
+
+	/** Requires (columns.length == fileNames.length) */
+    private static Map<String,List<ColumnOrSuperColumn>> makeCFMap(String columnFamily, String[] columns, String[] fileNames) {
+    	Map<String,List<ColumnOrSuperColumn>> cfmap = new HashMap<String,List<ColumnOrSuperColumn>> ();
+    	List<ColumnOrSuperColumn> cols = new ArrayList<ColumnOrSuperColumn>();
+    	cfmap.put(columnFamily, cols);
+    	for (int i = 0; i < columns.length; i++) {
+    		Column col = new Column();
+    		col.setName(columns[i].getBytes());
+    		col.setValue(fileNames[i].getBytes());
+    		col.setTimestamp(timestampMicros());
+    		ColumnOrSuperColumn col2 = new ColumnOrSuperColumn();
+    		col2.setColumn(col);
+    		cols.add(col2);
+    	}
+    	return cfmap;
+    }
+    
+    private static SlicePredicate makeSlicePred(String[] columns) {
+    	SlicePredicate slicePred = new SlicePredicate();
+    	List<byte[]> cols = new ArrayList<byte[]>();
+    	for (String col : columns) 
+    		cols.add(col.getBytes());
+    	slicePred.setColumn_names(cols);
+    	return slicePred;
+    }
+    
 }
