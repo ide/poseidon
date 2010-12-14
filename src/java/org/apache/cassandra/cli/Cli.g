@@ -51,6 +51,7 @@ tokens {
     // Internal Nodes.
     NODE_COLUMN_ACCESS;
     NODE_ID_LIST;
+    NODE_CONSISTENCY;
 }
 
 @parser::header {
@@ -66,7 +67,7 @@ package org.apache.cassandra.cli;
 //
 
 // the root node
-root: stmt SEMICOLON? EOF -> stmt;
+root: stmt consistency? SEMICOLON? EOF -> ^(stmt consistency?);
 
 stmt
     : connectStmt
@@ -162,6 +163,16 @@ ipaddr: id+=IntegerLiteral id+=DOT id+=IntegerLiteral id+=DOT id+=IntegerLiteral
 
 port: IntegerLiteral;
 
+consistency
+	: K_CONSISTENCY_ZERO
+	| K_CONSISTENCY_ONE
+	| K_CONSISTENCY_QUORUM
+	| K_CONSISTENCY_DCQUORUM
+	| K_CONSISTENCY_DCQUORUMSYNC
+	| K_CONSISTENCY_ALL
+	| K_CONSISTENCY_ANY
+	;
+
 //
 // Lexer Section
 //
@@ -189,6 +200,14 @@ K_SHOW:       'SHOW';
 K_TABLE:      'KEYSPACE';
 K_TABLES:     'KEYSPACES';
 K_VERSION:    'API VERSION';
+
+K_CONSISTENCY_ZERO: '0';
+K_CONSISTENCY_ONE: '1';
+K_CONSISTENCY_QUORUM: 'QUORUM';
+K_CONSISTENCY_DCQUORUM: 'DCQUORUM';
+K_CONSISTENCY_DCQUORUMSYNC: 'DCQUORUMSYNC';
+K_CONSISTENCY_ALL: 'ALL';
+K_CONSISTENCY_ANY: 'ANY';
 
 // private syntactic rules
 fragment

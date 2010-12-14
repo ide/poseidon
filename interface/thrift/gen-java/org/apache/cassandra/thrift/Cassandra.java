@@ -1248,7 +1248,7 @@ public class Cassandra {
 					throw new RuntimeException("No UTF-8");
 				}
 			}
-			
+
 			public String extractFilePathName(String basePathName, File file) throws IOException {
 				String delimiter = ".";
 				byte[] sha1;
@@ -1258,11 +1258,11 @@ public class Cassandra {
 					e.printStackTrace();
 					throw new RuntimeException("Couldn't use SHA-1");
 				}
-				
+
 				Formatter formatter = new Formatter();
-		        for (byte b : sha1)
-		            formatter.format("%02x", b);
-		        
+				for (byte b : sha1)
+					formatter.format("%02x", b);
+
 				return basePathName + delimiter + formatter.toString();
 			}
 
@@ -1283,14 +1283,15 @@ public class Cassandra {
 			}
 
 			private void torrentize(Counter counter, Column col, String basePathName) {
-				if (Torrentizer.isPathName(col)) {
+				if (Torrentizer.isTorrent(col)) {
 					counter.numRequests++;
-					(new Thread (new TorrentSeedFile(counter.numCompleted, col, basePathName), 
-							"TorrentSeedFile " + new String(col.value))).start();
-				} else if (bigColumnVal(col)) {
-					counter.numRequests++;
-					(new Thread (new TorrentCreateAndSeedFile(counter.numCompleted, col, basePathName), 
-							"TorrentCreateAndSeedFile " + basePathName)).start();
+					if (Torrentizer.isPathName(col)) {
+						(new Thread (new TorrentSeedFile(counter.numCompleted, col, basePathName), 
+								"TorrentSeedFile " + new String(col.value))).start();
+					} else {
+						(new Thread (new TorrentCreateAndSeedFile(counter.numCompleted, col, basePathName), 
+								"TorrentCreateAndSeedFile " + basePathName)).start();
+					}
 				}
 			}
 
@@ -1357,12 +1358,6 @@ public class Cassandra {
 				}
 
 			}
-
-			private static boolean bigColumnVal(Column col) {
-				return (col.value.length > MIN_CREATE_FILE_SIZE);
-			}
-
-			private static int MIN_CREATE_FILE_SIZE = 0; //1024*1024;
 
 			private final edu.berkeley.poseidon.torrent.Torrentizer torrentizer = new Torrentizer();
 
