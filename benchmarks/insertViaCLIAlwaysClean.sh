@@ -29,15 +29,16 @@ function get_column_names () {
 function timed_cmd () {
   echo "Running CLI with input:" >&2
   echo "$1" >&2
-  (echo "$1"; echo "quit") | ec2/cli/cli.sh | tee -a cli-output.txt | grep real | cut -d' ' -f2
+  (echo "$1"; echo "quit") | ec2/cli/cli.sh | grep real | cut -d' ' -f2
 }
 
 DATADIR=$PWD/testdata
 Iterations="1 2 3 4 5"
 #SIZES="1 4 16 64"
-SIZES="8k 16k 32k 64k"
+SIZES="64k 128k 256k 512k"
 
 function cleanup() {
+  killall -9 java utserver
   rm -f ec2/cli/torrents/*
   rm -f ec2/cli/downloads/*
   rm -f ec2/cli/*.dat*
@@ -46,10 +47,9 @@ function cleanup() {
 }
 
 function remote_cleanup() {
-  ec2/restartall --delete
-#  ec2/stopall.sh --delete
-#  ec2/commandonall.sh 'killall -9 java utserver; rm -f ec2/downloads/*; rm -f ec2/torrents/*; rm -rf ec2/active-data/*; cp -rf poseidon/active-data/* ec2/active-data/; rm -f ec2/*.dat*' 
-#  ec2/startall.sh
+  ec2/stopall.sh --delete
+  ec2/commandonall.sh 'killall -9 java utserver; rm -f ec2/downloads/*; rm -f ec2/torrents/*; rm -rf ec2/active-data/*; cp -rf poseidon/active-data/* ec2/active-data/; rm -f ec2/*.dat*' 
+  ec2/startall.sh
 }
 
 cleanup
