@@ -35,7 +35,7 @@ function timed_cmd () {
 DATADIR=$PWD/testdata
 Iterations="1 2 3 4 5"
 #SIZES="1 4 16 64"
-SIZES="64k 128k 256k 512k"
+SIZES="128k" #64k 128k 256k 512k"
 
 function cleanup() {
   killall -9 java utserver
@@ -65,8 +65,18 @@ function hardlinkdata () {
   done
 }
 
+function print_bandwidth () {
+    echo cli
+    /sbin/ifconfig eth0 | grep "RX bytes" | sed -e "s/.*RX bytes:\\([0-9]*\\) .*/name=$1, rx=\\1/"
+    echo cli
+    /sbin/ifconfig eth0 | grep "TX bytes" | sed -e "s/.*TX bytes:\\([0-9]*\\) .*/name=$1, tx=\\1/"
+    ec2/commandonall.sh '/sbin/ifconfig eth0 | grep "RX bytes" | sed -e "s/.*RX bytes:\\([0-9]*\\) .*/name='"$1"', rx=\\1/"'
+    ec2/commandonall.sh '/sbin/ifconfig eth0 | grep "TX bytes" | sed -e "s/.*TX bytes:\\([0-9]*\\) .*/name='"$1"', tx=\\1/"'
+}
+
 remote_cleanup
 cleanup
+#if false; then ##############
 for i in $Iterations; do 
   hardlinkdata
   for kbytes in $SIZES; do
@@ -79,8 +89,11 @@ for i in $Iterations; do
     echo "Normal Columns: $normalColumns"
     echo "Torrent Columns: $torrentColumns"
 
+    print_bandwidth set-before-normal
     normalDuration=$(timed_cmd "set Keyspace1.Standard1['benchmark_${i}_${kbytes}']['${normalColumns}'] = '${value}' ALL")
+    print_bandwidth set-after-normal
     torrentDuration=$(timed_cmd "set Keyspace1.Standard1['benchmark_${i}_${kbytes}']['${torrentColumns}'] = '${value}' ALL")
+    print_bandwidth set-after-torrent
     remote_cleanup
     cleanup
 
@@ -88,18 +101,30 @@ for i in $Iterations; do
   done
 done
 
-for i in $Iterations; do 
-  hardlinkdata
-  for kbytes in $SIZES; do
+hardlinkdata
+for kbytes in $SIZES; do
+    value=$(get_file_list ${DATADIR}/${kbytes})
     normalColumns=$(get_column_names _F ${DATADIR}/${kbytes})
     torrentColumns=$(get_column_names __T_F ${DATADIR}/${kbytes})
 
-    normalDuration=$(timed_cmd "get Keyspace1.Standard1['benchmark_${i}_${kbytes}'] ALL")
-    $(timed_cmd "set Keyspace1.Standard1['benchmark_${i}_${kbytes}']['${torrentColumns}'] = '${value}' ALL")
-    torrentDuration=$(timed_cmd "get Keyspace1.Standard1['benchmark_${i}_${kbytes}'] ALL")
+    $(timed_cmd "set Keyspace1.Standard1['benchmark_${kbytes}']['${normalColumns}'] = '${value}' ALL")
+    $(timed_cmd "set Keyspace1.Standard1['benchmark_${kbytes}']['${torrentColumns}'] = '${value}' ALL")
+done
+#fi ################
 
-    remote_cleanup
+hardlinkdata
+for i in $Iterations; do 
+  for kbytes in $SIZES; do
     cleanup
+
+    normalColumns=$(get_column_names _F ${DATADIR}/${kbytes})
+    torrentColumns=$(get_column_names __T_F ${DATADIR}/${kbytes})
+
+    print_bandwidth get-before-normal
+    normalDuration=$(timed_cmd "get Keyspace1.Standard1['benchmark_${kbytes}']['${normalColumns}'] ALL")
+    print_bandwidth get-after-normal
+    torrentDuration=$(timed_cmd "get Keyspace1.Standard1['benchmark_${kbytes}']['${torrentColumns}'] ALL")
+    print_bandwidth get-after-torrent
 
     echo -e "get\t$kbytes\t$normalDuration\t$torrentDuration"
   done
