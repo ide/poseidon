@@ -275,7 +275,7 @@ if __name__ == '__main__':
     parser.add_option("-d", "--dir", "--db", dest="dir", help="Base directory")
     parser.add_option("-p", "--port", dest="port", help="First of %d consecutive ports."%Port.allocation, default=DEFAULT_PORT)
     parser.add_option("-l", "--listen", dest="listen", help="Host to listen (default 0.0.0.0)", default=DEFAULT_HOST)
-    parser.add_option("-h", "--hostip", dest="hostip", help="Host IP to send via gossip", default=DEFAULT_HOST)
+    parser.add_option("--hostip", dest="hostip", help="Host IP to send via gossip", default=DEFAULT_HOST)
     (options, args) = parser.parse_args()
 
     dir = options.dir

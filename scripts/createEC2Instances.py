@@ -43,9 +43,9 @@ def createInstances(basedir, instInfo, certfile):
         pass
     sshHosts = ["%s@%s"%(node["user"],node["extip"]) for node in instInfo.values()]
     allNodes = ["%s"%(node["extip"]) for node in instInfo.values()]
-    for sshHost in sshHosts:
+    for node, sshHost in zip(allNodes, sshHosts):
         args = ["ssh", "ssh", "-i", certfile, sshHost,
-                "cd poseidon && git fetch origin && git pull origin master && ant && python scripts/create.py --btport 6881 -n "+(','.join(allNodes))+" -d ~/"+basedir]
+                "cd poseidon && git fetch origin && git pull origin master && ant && python scripts/create.py --btport 6881 -n "+(','.join(allNodes))+" -d ~/"+basedir+" --hostip "+node]
         print args
         os.spawnlp(os.P_WAIT, *args)
 
