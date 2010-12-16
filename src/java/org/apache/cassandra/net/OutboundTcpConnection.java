@@ -147,7 +147,7 @@ public class OutboundTcpConnection extends Thread
             try
             {
                 // zero means 'bind on any available port.'
-                socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), FBUtilities.getLocalAddress(), 0);
+                socket = new Socket(endpoint, DatabaseDescriptor.getStoragePort(), InetAddress.getLocalHost(), 0);
                 socket.setTcpNoDelay(true);
                 output = new DataOutputStream(socket.getOutputStream());
                 return true;
