@@ -39,8 +39,8 @@ done
 # Arguments to pass to the JVM
 JVM_OPTS=" \
         -ea \
-        -Xms1G \
-        -Xmx4G \
+        -Xms100m \
+        -Xmx400m \
         -XX:+UseParNewGC \
         -XX:+UseConcMarkSweepGC \
         -XX:+CMSParallelRemarkEnabled \
