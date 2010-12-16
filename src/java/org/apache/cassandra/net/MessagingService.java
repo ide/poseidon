@@ -147,7 +147,7 @@ public class MessagingService
         ServerSocketChannel serverChannel = ServerSocketChannel.open();
         final ServerSocket ss = serverChannel.socket();
         ss.setReuseAddress(true);
-        ss.bind(new InetSocketAddress(localEp, DatabaseDescriptor.getStoragePort()));
+        ss.bind(new InetSocketAddress(InetAddress.getLocalHost(), DatabaseDescriptor.getStoragePort()));
         socketThread = new SocketThread(ss, "ACCEPT-" + localEp);
         socketThread.start();
         listenGate.signalAll();

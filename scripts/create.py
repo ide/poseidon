@@ -16,10 +16,11 @@ class Port:
     # Really we need 5 but let's play it safe in case we need to add services.
     allocation = 10
 
-    def __init__(self, port, host, torrentport=None):
+    def __init__(self, port, host, thisaddress, torrentport):
         self.baseport = int(port)
         self.bindhost = host # e.g. 127.0.100.1, 2, etc.
-        self.torrentport = torrentport or self.baseport + 2
+        self.torrentport = torrentport
+        self.thisaddress = thisaddress
 
     def cass_storage_port(self):
         return CASS_PORT # Must be constant between all nodes
@@ -37,9 +38,7 @@ class Port:
 
     def cass_listen_address(self):
         """ The ip address used to connect to services running on this machine """
-        if self.bindhost == "0.0.0.0":
-            return ""
-        return self.bindhost
+        return self.thisaddress
 
     def connect_address(self):
         """ The ip address used to connect to services running on this machine """
@@ -155,19 +154,30 @@ cd %s
 
 set -x
 
-if [ -e utpid.txt ]; then
-    UTPID=$(cat utpid.txt)
-    kill "$UTPID"
-    while $(ps -A | grep -q "^$UTPID "); do
-        sleep 0.1
-    done
+DELETE=0
+if echo "$*" | grep -q '--delete'; then
+  DELETE=1
 fi
-if [ -e casspid.txt ]; then
-    CASSPID=$(cat casspid.txt)
-    kill "$CASSPID"
-    while $(ps -A | grep -q "^$CASSPID "); do
-        sleep 0.1
-    done
+if [[ $DELETE == 1 ]]; then
+  pkill -9 utserver
+  pkill -9 java
+else
+  pkill "utserver"
+  pkill "java"
+fi
+while $(pgrep "utserver"); do
+  sleep 0.1
+done
+while $(pgrep "java"); do
+  sleep 0.1
+done
+
+if [[ $DELETE == 1 ]]; then
+  rm -f *.dat*
+  rm -f downloads/*
+  rm -f torrents/*
+  rm -rf active-data/
+  mkdir active-data
 fi
 """ % (basedir, )
     startScript = """#!/bin/bash
@@ -264,7 +274,8 @@ if __name__ == '__main__':
     parser.add_option("-n", "--nodes", dest="allNodes", help="Comma-separated list of ip-address:port pairs of all non-CLI nodes. Must include self.")
     parser.add_option("-d", "--dir", "--db", dest="dir", help="Base directory")
     parser.add_option("-p", "--port", dest="port", help="First of %d consecutive ports."%Port.allocation, default=DEFAULT_PORT)
-    parser.add_option("-l", "--listen", dest="host", help="Host to listen (default 0.0.0.0)", default=DEFAULT_HOST)
+    parser.add_option("-l", "--listen", dest="listen", help="Host to listen (default 0.0.0.0)", default=DEFAULT_HOST)
+    parser.add_option("-h", "--hostip", dest="hostip", help="Host IP to send via gossip", default=DEFAULT_HOST)
     (options, args) = parser.parse_args()
 
     dir = options.dir
@@ -281,12 +292,12 @@ if __name__ == '__main__':
         port = DEFAULT_PORT
         if len(hostport) > 1:
             port = hostport[1]
-        allNodes.append(Port(port, host))
+        allNodes.append(Port(port, host, "", options.btport))
 
     if not dir or dir[0] == ".":
         print >>sys.stderr, "Cannot use current directory for configuration"
         parser.print_help()
         sys.exit(1)
 
-    setupDirectory(basedir=dir, port=Port(int(options.port), options.host, int(options.btport)), allNodes=allNodes, isCli=options.isCli)
+    setupDirectory(basedir=dir, port=Port(int(options.port), options.listen, options.hostip, int(options.btport)), allNodes=allNodes, isCli=options.isCli)
     print "Finished setting up directory %s"%(dir,)
