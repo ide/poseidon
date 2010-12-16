@@ -123,6 +123,8 @@ def setupCassandra(basedir, port, allNodes, isCli=False):
         setXMLConfigValue(xml, "CommitLogDirectory", os.path.join(basedir, "active-data", "commitlog"))
         setXMLConfigValue(xml, "DataFileDirectory", os.path.join(basedir, "active-data", "data"))
 
+        setXMLConfigValue(xml, "ReplicationFactor", len(allNodes))
+
         seedsElem = getXMLConfigElement(xml, "Seeds")
         for ch in seedsElem.childNodes[:]:
             seedsElem.removeChild(ch)
