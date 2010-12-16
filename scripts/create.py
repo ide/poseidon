@@ -155,7 +155,7 @@ cd %s
 set -x
 
 DELETE=0
-if echo "$*" | grep -q '--delete'; then
+if echo "$*" | grep -q '[-][-]delete'; then
   DELETE=1
 fi
 if [[ $DELETE == 1 ]]; then
