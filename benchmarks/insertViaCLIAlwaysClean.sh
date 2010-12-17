@@ -42,12 +42,12 @@ function cleanup() {
   rm -f ec2/cli/downloads/*
   rm -f ec2/cli/*.dat*
   rm -rf ec2/active-data/*
-  cp -rf poseidon/active-data/* ec2/active-data/
+  cp -rf active-data/* ec2/active-data/
 }
 
 function remote_cleanup() {
   ec2/stopall.sh --delete
-  ec2/commandonall.sh 'killall -9 java utserver; rm -f ec2/downloads/*; rm -f ec2/torrents/*; rm -rf ec2/active-data/*; cp -rf poseidon/active-data/* ec2/active-data/; rm -f ec2/*.dat*' 
+  ec2/commandonall.sh 'killall -9 java utserver; rm -f ec2/downloads/*; rm -f ec2/torrents/*; rm -rf ec2/active-data/*; cp -rf poseidon/active-data/* ec2/active-data/; rm -f ec2/*.dat*; rm -f poseidon/*.hconf' 
   ec2/startall.sh
 }
 
