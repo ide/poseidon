@@ -34,8 +34,7 @@ function timed_cmd () {
 
 DATADIR=$PWD/testdata
 Iterations="1 2 3 4 5"
-#SIZES="1 4 16 64"
-SIZES="128k" #64k 128k 256k 512k"
+SIZES="1 64k 128k 256k 512k"
 
 function cleanup() {
   killall -9 java utserver
