@@ -6,8 +6,6 @@ bandwidth_regex=re.compile("^name=([sg]et)-([-a-z]*), ([rt]x)=([0-9]*)$")
 size_regex=re.compile("^Iteration ([0-9]*): ([0-9]*k*)$")
 time_regex=re.compile("^([gs]et)\t([0-9]*k*)\t([0-9.]*)\t([0-9.]*)$")
 
-current = {"rx": {}, "tx": {}}
-
 tests = {"get":{"bw_normal":{},"bw_torrent":{},"pct_normal":{},"pct_torrent":{}},
          "set":{"bw_normal":{},"bw_torrent":{},"pct_normal":{},"pct_torrent":{}}}
 
@@ -20,6 +18,8 @@ for a in sys.argv[1:]:
         host = None
         size = None
         deltas = {}
+        current = {"rx": {}, "tx": {}}
+        contains_bandwidth = False
         for line in f.readlines():
             ip_match = ip_regex.match(line)
             bandwidth_match = bandwidth_regex.match(line)
@@ -30,6 +30,7 @@ for a in sys.argv[1:]:
             elif line.strip() == "cli":
                 host = "cli"
             elif bandwidth_match:
+                contains_bandwidth = True
                 test_part = bandwidth_match.group(2)
                 rxtx = bandwidth_match.group(3)
                 last_data = current[rxtx].get(host, 0)
@@ -45,16 +46,16 @@ for a in sys.argv[1:]:
                 elif test_part == "after-torrent":
                     res[rxtx+"_delta_torrent"] = delta
                 host = None
+            elif time_match and not contains_bandwidth:
+                #print "File "+a+" does not contain bandwidth info"
+                pass
             elif time_match:
                 test_type = time_match.group(1)
                 size = time_match.group(2)
-                print size 
                 if size[-1] == "k":
                     size = int(size[:-1])*1024
                 size = int(size)*1024
-                print "SIZE:",size
                 if size <= 1024:
-                    print "ignoring 1kb"
                     continue
 
                 time_normal = float(time_match.group(3))
@@ -79,8 +80,6 @@ for getset, getsetdict in tests.iteritems():
     for testtype, testdict in getsetdict.iteritems():
         for host in testdict:
             testdict[host] = sum(testdict[host])/len(testdict[host])
-
-print tests
 
 import numpy
 for getset, getsetdict in tests.iteritems():
