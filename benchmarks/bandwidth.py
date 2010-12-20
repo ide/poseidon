@@ -77,11 +77,13 @@ for a in sys.argv[1:]:
 
 
 for getset, getsetdict in tests.iteritems():
-    for testtype, testdict in getsetdict.iteritems():
-        for host in testdict:
-            testdict[host] = sum(testdict[host])/len(testdict[host])
+    for testtype in getsetdict.iterkeys():
+        for host, valuelist in getsetdict[testtype].iteritems():
+            for value in valuelist:
+                print "%s\t%s\t%s\t%f"%(getset, testtype, host, value)
+        #getsetdict[testtype] = reduce((lambda a,b:a+b),getsetdict[testtype].values(),[])
 
-import numpy
-for getset, getsetdict in tests.iteritems():
-    for testtype, testdict in getsetdict.iteritems():
-        print getset, testtype, "mean:", numpy.mean(testdict.values()), "stddev:", numpy.std(testdict.values())
+#import numpy
+#for getset, getsetdict in tests.iteritems():
+#    for testtype, values in getsetdict.iteritems():
+#        print getset, testtype, "mean:", numpy.mean(values), "stddev:", numpy.std(values)
