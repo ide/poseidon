@@ -67,7 +67,7 @@ for a in sys.argv[1:]:
                     for rxtx in ("rx","tx"):
                         delta_normal += float(res[rxtx+"_delta_normal"])
                         delta_torrent += float(res[rxtx+"_delta_torrent"])
-                    for key, value in [('bw_normal', (size, delta_normal, time_normal, delta_normal/time_normal, delta_torrent/size)),
+                    for key, value in [('bw_normal', (size, delta_normal, time_normal, delta_normal/time_normal, delta_normal/size)),
                                        ('bw_torrent', (size, delta_torrent, time_torrent, delta_torrent/time_torrent, delta_torrent/size))]:
                         dic = tests[test_type][key]
                         dic[host] = dic.get(host, [])
