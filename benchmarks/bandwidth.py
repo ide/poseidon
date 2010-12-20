@@ -6,8 +6,8 @@ bandwidth_regex=re.compile("^name=([sg]et)-([-a-z]*), ([rt]x)=([0-9]*)$")
 size_regex=re.compile("^Iteration ([0-9]*): ([0-9]*k*)$")
 time_regex=re.compile("^([gs]et)\t([0-9]*k*)\t([0-9.]*)\t([0-9.]*)$")
 
-tests = {"get":{"bw_normal":{},"bw_torrent":{},"pct_normal":{},"pct_torrent":{}},
-         "set":{"bw_normal":{},"bw_torrent":{},"pct_normal":{},"pct_torrent":{}}}
+tests = {"get":{"bw_normal":{},"bw_torrent":{}},
+         "set":{"bw_normal":{},"bw_torrent":{}}}
 
 if len(sys.argv) <= 1:
     print >>sys.stderr, "Usage: %s benchmark-output..."%(sys.argv[0])
@@ -67,20 +67,19 @@ for a in sys.argv[1:]:
                     for rxtx in ("rx","tx"):
                         delta_normal += float(res[rxtx+"_delta_normal"])
                         delta_torrent += float(res[rxtx+"_delta_torrent"])
-                    for key, value in [('bw_normal', (delta_normal / time_normal)),
-                                       ('bw_torrent', (delta_torrent / time_torrent)),
-                                       ('pct_normal', (delta_normal / size)),
-                                       ('pct_torrent', (delta_torrent / size))]:
+                    for key, value in [('bw_normal', (size, delta_normal, time_normal, delta_normal/time_normal, delta_torrent/size)),
+                                       ('bw_torrent', (size, delta_torrent, time_torrent, delta_torrent/time_torrent, delta_torrent/size))]:
                         dic = tests[test_type][key]
                         dic[host] = dic.get(host, [])
                         dic[host].append(value)
 
 
+print "getset\tusingtorrent\thost\tdata_size\tdata_xfer\ttime\tbandwidth\tpct_xfer"
 for getset, getsetdict in tests.iteritems():
     for testtype in getsetdict.iterkeys():
         for host, valuelist in getsetdict[testtype].iteritems():
             for value in valuelist:
-                print "%s\t%s\t%s\t%f"%(getset, testtype, host, value)
+                print "%s\t%s\t%s\t%d\t%d\t%g\t%f\t%f"%((getset, testtype, host) + value)
         #getsetdict[testtype] = reduce((lambda a,b:a+b),getsetdict[testtype].values(),[])
 
 #import numpy
